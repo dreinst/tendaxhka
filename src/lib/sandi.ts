@@ -22,3 +22,10 @@ export function tokenBaru(): { token: string; hash: string } {
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
+
+// Membandingkan dua teks rahasia dengan waktu yang sama, berapa pun panjangnya.
+export function samaAman(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a).digest();
+  const hb = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ha, hb);
+}

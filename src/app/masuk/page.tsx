@@ -24,9 +24,15 @@ export default async function Masuk({ searchParams }: { searchParams: Cari }) {
             <h1 className="text-base font-bold">{pertama ? "Buat akun admin pertama" : "Masuk"}</h1>
             <Pesan galat={galat} />
             {pertama && (
-              <Bidang label="Nama" id="nama">
-                <input className="isian" id="nama" name="nama" required maxLength={80} autoComplete="name" />
-              </Bidang>
+              <>
+                <p className="text-xs text-tinta/70">Belum ada akun. Isi kode penyiapan (SETUP_TOKEN di berkas .env server) untuk membuat admin pertama.</p>
+                <Bidang label="Kode penyiapan" id="kode">
+                  <input className="isian" id="kode" name="kode" type="password" required autoComplete="off" />
+                </Bidang>
+                <Bidang label="Nama" id="nama">
+                  <input className="isian" id="nama" name="nama" required maxLength={80} autoComplete="name" />
+                </Bidang>
+              </>
             )}
             <Bidang label="Username" id="username">
               <input className="isian" id="username" name="username" required autoComplete="username" autoCapitalize="none" />

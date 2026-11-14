@@ -14,7 +14,7 @@ npm run seed     # opsional, mengisi data contoh
 npm run dev      # http://localhost:3000
 ```
 
-Tanpa `npm run seed`, halaman `/masuk` menampilkan formulir untuk membuat akun admin pertama.
+Tanpa `npm run seed`, halaman `/masuk` menampilkan formulir untuk membuat akun admin pertama. Formulir itu meminta kode `SETUP_TOKEN` dari `.env` (lihat `.env.example`), jadi isi kode itu dulu sebelum situs bisa dibuka orang lain.
 
 Data contoh berisi enam akun (`admin`, `sales`, `gudang`, `kru`, `partner-tenda`, `partner-hka`) dengan kata sandi yang sama, tertulis di `skrip/seed.ts`. Semua aset, harga, pelanggan, dan pesanan di data contoh adalah karangan. Ganti dengan hasil audit gudang dan daftar harga yang sebenarnya sebelum dipakai.
 

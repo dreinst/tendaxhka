@@ -7,7 +7,7 @@ import { ambilPesanan, barisPesanan, bulanTerkunci, kekurangan, kunciBulan, nomo
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni } from "./format.ts";
 import { bacaChecklist, tambahHari, tanggalSah, type ButirChecklist } from "./hitung.ts";
-import { cocokSandi, hashSandi } from "./sandi.ts";
+import { cocokSandi, hashSandi, samaAman } from "./sandi.ts";
 
 // Galat yang pesannya boleh ditampilkan ke pengguna. Galat lain dibiarkan naik ke halaman error.
 class Galat extends Error {}
@@ -55,8 +55,12 @@ export async function masuk(fd: FormData): Promise<void> {
   const sandi = String(fd.get("sandi") ?? "");
   if (terlaluSering(`masuk:${await alamatIp()}:${username}`, 5, 15)) gagal("/masuk", "Terlalu banyak percobaan. Coba lagi 15 menit lagi.");
 
-  // Basis data tanpa pengguna: formulir masuk membuat akun admin pertama.
+  // Basis data tanpa pengguna: formulir masuk membuat akun admin pertama. Supaya orang asing yang kebetulan
+  // membuka /masuk lebih dulu tidak bisa merebutnya, formulir ini meminta kode SETUP_TOKEN dari .env.
   if (!satu("SELECT 1 FROM pengguna LIMIT 1")) {
+    const kode = process.env.SETUP_TOKEN ?? "";
+    if (kode.length < 16) gagal("/masuk", "SETUP_TOKEN di .env belum diisi atau kurang dari 16 karakter.");
+    if (!samaAman(String(fd.get("kode") ?? ""), kode)) gagal("/masuk", "Kode penyiapan salah.");
     const nama = teks(fd, "nama", 80);
     if (!nama || !/^[a-z0-9._-]{3,30}$/.test(username) || sandi.length < 8) {
       gagal("/masuk", "Isi nama, username (3 sampai 30 huruf kecil atau angka), dan kata sandi minimal 8 karakter.");
