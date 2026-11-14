@@ -65,3 +65,23 @@ test("nomor pesanan berurut per bulan", () => {
   jalankan("INSERT INTO pesanan (nomor, kontak_id, acara, mulai, selesai, dibuat) VALUES ('TI-2703-001', ?, 'X', '2027-03-10', '2027-03-10', '2027-03-09')", kontak);
   assert.equal(nomorBerikut("2027-03-20"), "TI-2703-002");
 });
+
+test("hari terpadat menghitung booking dan perawatan sejak tanggal awal", async () => {
+  const { hariTerpadat } = await import("../src/lib/data.ts");
+  const kursi = jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('K1', 'Kursi', 'Kursi', 5, 1000)");
+  const baris = (id: number, n: number) =>
+    jalankan("INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, ?, 'Kursi', ?, 1, 1000)", id, kursi, n);
+  assert.equal(hariTerpadat(kursi, "2026-12-01"), null);
+  const pesan = (nomor: string, mulai: string, selesai: string, status: string) =>
+    jalankan(
+      "INSERT INTO pesanan (nomor, kontak_id, acara, mulai, selesai, status, dibuat) VALUES (?, ?, 'Acara', ?, ?, ?, '2026-11-01')",
+      nomor, kontak, mulai, selesai, status,
+    );
+  baris(pesan("K-A", "2026-12-03", "2026-12-04", "booking"), 3);
+  baris(pesan("K-B", "2026-12-04", "2026-12-05", "booking"), 2);
+  baris(pesan("K-C", "2026-12-04", "2026-12-04", "penawaran"), 5);
+  assert.deepEqual(hariTerpadat(kursi, "2026-12-01"), { tanggal: "2026-12-04", jumlah: 5 });
+  jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai) VALUES (?, 1, '2026-12-02')", kursi);
+  assert.deepEqual(hariTerpadat(kursi, "2026-12-01"), { tanggal: "2026-12-04", jumlah: 6 });
+  assert.equal(hariTerpadat(kursi, "2026-12-06"), null);
+});

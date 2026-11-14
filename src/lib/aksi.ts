@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { alamatIp, bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
-import { ambilPesanan, barisPesanan, bulanTerkunci, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, type Aset } from "./data.ts";
+import { ambilPesanan, barisPesanan, bulanTerkunci, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni } from "./format.ts";
 import { bacaChecklist, tambahHari, tanggalSah, type ButirChecklist } from "./hitung.ts";
@@ -199,9 +199,13 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
 
   const galat = coba(() => {
     if (id) {
-      const lama = satu<{ status: string }>("SELECT status FROM pesanan WHERE id = ?", id);
+      const lama = satu<{ status: string; mulai: string; selesai: string }>("SELECT status, mulai, selesai FROM pesanan WHERE id = ?", id);
       if (!lama) throw new Galat("Pesanan tidak ditemukan.");
       if (lama.status === "selesai" || lama.status === "batal") throw new Galat("Pesanan yang sudah selesai atau batal tidak bisa diubah.");
+      // Tugas pasang dan bongkar yang belum selesai ikut pindah kalau tanggal pesanan digeser. Tugas yang
+      // tanggalnya sudah diubah manual (tidak sama dengan tanggal lama) dibiarkan.
+      jalankan("UPDATE tugas SET tanggal = ? WHERE pesanan_id = ? AND jenis = 'pasang' AND selesai = 0 AND tanggal = ?", mulai, id, lama.mulai);
+      jalankan("UPDATE tugas SET tanggal = ? WHERE pesanan_id = ? AND jenis = 'bongkar' AND selesai = 0 AND tanggal = ?", selesai, id, lama.selesai);
       jalankan(
         "UPDATE pesanan SET kontak_id = ?, acara = ?, lokasi = ?, mulai = ?, selesai = ?, diskon = ?, catatan = ? WHERE id = ?",
         kontakId,
@@ -278,13 +282,26 @@ export async function ubahStatus(id: number, tujuan: string): Promise<void> {
     if (tujuan === "booking") {
       const kurang = kekurangan(id);
       if (kurang.length) throw new Galat(`Belum bisa dibooking, aset tidak cukup. ${kurang.join("; ")}.`);
-      // Jadwal pasang dan bongkar dibuat sekali, lengkap dengan checklist bawaan.
-      if (!satu("SELECT 1 FROM tugas WHERE pesanan_id = ?", id)) {
-        for (const [jenis, tgl] of [["pasang", p.mulai], ["bongkar", p.selesai]]) {
+      // Jadwal pasang dan bongkar dibuat sekali per jenis, lengkap dengan checklist bawaan.
+      for (const [jenis, tgl] of [["pasang", p.mulai], ["bongkar", p.selesai]]) {
+        if (!satu("SELECT 1 FROM tugas WHERE pesanan_id = ? AND jenis = ?", id, jenis)) {
           jalankan("INSERT INTO tugas (pesanan_id, jenis, tanggal, checklist) VALUES (?, ?, ?, ?)", id, jenis, tgl, butirBawaan(jenis));
         }
       }
       jalankan("UPDATE kontak SET tahap = 'menang' WHERE id = ?", p.kontak_id);
+    }
+    if (p.status === "booking" && (tujuan === "penawaran" || tujuan === "batal")) {
+      // Booking dilepas: tugas lapangan yang belum dikerjakan dihapus supaya tidak muncul di jadwal kru, dan
+      // kontak yang tidak punya booking lain kembali ke tahap penawaran (atau kalah kalau pesanannya batal).
+      jalankan("DELETE FROM tugas WHERE pesanan_id = ? AND selesai = 0", id);
+      const lainAktif = satu(
+        "SELECT 1 FROM pesanan WHERE kontak_id = ? AND id <> ? AND status IN ('booking', 'berjalan', 'selesai')",
+        p.kontak_id,
+        id,
+      );
+      if (!lainAktif) {
+        jalankan("UPDATE kontak SET tahap = ? WHERE id = ? AND tahap = 'menang'", tujuan === "batal" ? "kalah" : "penawaran", p.kontak_id);
+      }
     }
     if (tujuan === "selesai" && !p.tgl_faktur) {
       pastikanTerbuka(hariIni());
@@ -467,6 +484,9 @@ export async function simpanAset(fd: FormData): Promise<void> {
       ...isi,
       id,
     );
+    // Jumlah aset boleh diturunkan (unit hilang atau dijual), tapi booking yang terdampak harus terlihat.
+    const peringatan = peringatanStok(id, Number(isi[5]), hariIni());
+    if (peringatan) gagal(kembali, `Aset disimpan. ${peringatan}`);
   } else {
     jalankan(
       "INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi, tampil_web, aktif) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -484,7 +504,18 @@ export async function tambahPerawatan(asetId: number, fd: FormData): Promise<voi
   const a = satu<Aset>("SELECT * FROM aset WHERE id = ?", asetId);
   if (!a || jumlah <= 0 || jumlah > a.jumlah || !tanggalSah(mulai)) gagal(kembali, "Isi jumlah unit (tidak lebih dari total) dan tanggal mulai.");
   jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, ?, ?, ?)", asetId, jumlah, mulai, teks(fd, "catatan", 300));
+  // Unit yang rusak tetap dicatat karena memang tidak bisa dipakai, tapi gudang dan sales perlu tahu kalau
+  // booking yang sudah ada jadi kekurangan.
+  const peringatan = peringatanStok(asetId, a.jumlah, mulai);
+  if (peringatan) gagal(kembali, `Perawatan dicatat. ${peringatan}`);
   redirect(kembali);
+}
+
+// Pesan kalau pemakaian di hari terpadat sejak tanggal awal melebihi jumlah aset. Kosong berarti aman.
+function peringatanStok(asetId: number, total: number, awal: string): string | null {
+  const padat = hariTerpadat(asetId, awal);
+  if (!padat || padat.jumlah <= total) return null;
+  return `Perhatian: tanggal ${padat.tanggal} butuh ${padat.jumlah} unit untuk booking dan perawatan, padahal jumlah aset ${total}. Cek kalender dan atur ulang booking yang terdampak.`;
 }
 
 export async function selesaiPerawatan(id: number): Promise<void> {
@@ -565,13 +596,15 @@ export async function bukaPeriode(bulan: string): Promise<void> {
 
 export async function catatBayarPartner(bulan: string, fd: FormData): Promise<void> {
   await wajib("keuangan.tulis");
-  jalankan(
-    "UPDATE periode SET dibayar_tenda = ?, dibayar_hka = ?, catatan = ? WHERE bulan = ?",
-    Math.max(0, bulat(fd.get("dibayar_tenda"))),
-    Math.max(0, bulat(fd.get("dibayar_hka"))),
-    teks(fd, "catatan", 300),
-    bulan,
-  );
+  const p = satu<{ bagian_tenda: number; bagian_hka: number }>("SELECT bagian_tenda, bagian_hka FROM periode WHERE bulan = ?", bulan);
+  if (!p) gagal("/sistem/bagi-hasil", "Periode itu belum ditutup.");
+  const tenda = Math.max(0, bulat(fd.get("dibayar_tenda")));
+  const hka = Math.max(0, bulat(fd.get("dibayar_hka")));
+  // Saat rugi, bagian partner negatif sehingga batasnya nol: tidak ada laba yang bisa dibayarkan.
+  if (tenda > Math.max(0, p.bagian_tenda) || hka > Math.max(0, p.bagian_hka)) {
+    gagal("/sistem/bagi-hasil", "Pembayaran ke partner tidak boleh melebihi bagiannya di periode itu.");
+  }
+  jalankan("UPDATE periode SET dibayar_tenda = ?, dibayar_hka = ?, catatan = ? WHERE bulan = ?", tenda, hka, teks(fd, "catatan", 300), bulan);
   redirect("/sistem/bagi-hasil");
 }
 

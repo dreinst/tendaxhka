@@ -2,6 +2,8 @@ import { jalankan, satu, semua } from "./db.ts";
 import {
   batasBulan,
   hitungLaba,
+  pakaiPerHari,
+  rentangHari,
   sisaTersedia,
   totalPesanan,
   utilisasi,
@@ -178,6 +180,23 @@ export function daftarPakai(
     awal,
   );
   return [...sewa, ...rawat];
+}
+
+// Hari terpadat untuk satu aset sejak tanggal awal sampai booking terakhirnya selesai, menghitung booking
+// yang sudah mengunci aset dan unit yang sedang diperbaiki. Dipakai sebelum stok berkurang (perawatan
+// baru atau jumlah aset diturunkan) untuk tahu apakah booking yang sudah ada jadi kekurangan.
+export function hariTerpadat(asetId: number, awal: string): { tanggal: string; jumlah: number } | null {
+  const ujung = satu<{ t: string | null }>(
+    `SELECT MAX(p.selesai) AS t FROM pesanan_baris b JOIN pesanan p ON p.id = b.pesanan_id
+     WHERE b.aset_id = ? AND p.status IN ('booking', 'berjalan') AND p.selesai >= ?`,
+    asetId,
+    awal,
+  )?.t;
+  if (!ujung) return null;
+  const hari = rentangHari(awal, ujung);
+  const per = pakaiPerHari(daftarPakai(awal, ujung), asetId, hari);
+  const i = per.indexOf(Math.max(...per));
+  return { tanggal: hari[i], jumlah: per[i] };
 }
 
 // Daftar aset yang tidak cukup untuk pesanan ini di rentang tanggalnya. Kosong berarti aman dibooking.

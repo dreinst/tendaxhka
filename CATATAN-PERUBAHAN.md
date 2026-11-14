@@ -44,3 +44,23 @@ Perubahan:
 - `disallow` dihapus dari `src/app/robots.ts`. Halaman internal tetap tidak diindeks karena `next.config.ts` sudah mengirim header `X-Robots-Tag: noindex`.
 
 Catatan soal alamat admin: alamat `/masuk` dan `/sistem` yang mudah ditebak bukan celah, karena setiap halaman dan aksi tetap memeriksa sesi lewat `wajib()`. Menyamarkan alamat hanya memperlambat penyerang sebentar.
+
+## 4. Empat bug logika
+
+### Jadwal kru tidak ikut pindah saat tanggal pesanan diubah
+
+Tugas pasang dan bongkar dibuat sekali saat booking. Kalau tanggal acara digeser, kru tetap melihat tanggal lama. Sekarang `simpanPesanan` ikut menggeser tugas pasang ke tanggal mulai baru dan tugas bongkar ke tanggal selesai baru. Tugas yang sudah selesai atau yang tanggalnya sudah diubah manual tidak disentuh.
+
+### Overbooking diam-diam karena stok berkurang
+
+Mencatat unit masuk perawatan atau menurunkan jumlah aset tidak dicek terhadap booking yang sudah ada. Contohnya 10 tenda sudah dibooking semua, lalu 3 dicatat rusak, dan tidak ada peringatan apa pun.
+
+Sekarang ada `hariTerpadat()` di `src/lib/data.ts` yang mencari hari dengan pemakaian terbanyak sejak tanggal tertentu. Setelah perawatan dicatat atau jumlah aset diubah, sistem menampilkan peringatan kalau ada tanggal yang kebutuhannya melebihi stok. Perubahannya tetap disimpan, karena unit yang rusak atau hilang memang tidak bisa dipakai, tapi gudang dan sales langsung tahu booking mana yang perlu diatur ulang. Ada tes baru untuk fungsi ini.
+
+### Pembayaran ke partner tidak divalidasi
+
+`catatBayarPartner` menerima angka berapa pun, bahkan untuk periode yang belum ditutup. Sekarang periode harus sudah ditutup, dan pembayaran ke tiap partner tidak boleh melebihi bagiannya. Saat rugi, batasnya nol.
+
+### Booking yang dilepas meninggalkan sisa
+
+Kalau status booking dikembalikan ke penawaran atau dibatalkan, tugas pasang dan bongkar tetap muncul di jadwal kru dan kontak tetap di tahap Menang. Sekarang tugas yang belum selesai dihapus. Kontak yang tidak punya booking lain kembali ke tahap Penawaran, atau Kalah kalau pesanannya batal. Saat dibooking ulang, tugas pasang dan bongkar dibuat lagi per jenis.
