@@ -112,7 +112,7 @@ Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".ba
 ## Yang perlu diketahui sebelum dipakai sungguhan
 
 - SQLite butuh disk yang menetap. Sistem ini cocok di VPS atau container dengan volume, dan tidak cocok di hosting serverless yang disknya hilang tiap deploy. Kalau nanti pindah ke PostgreSQL, yang diganti adalah `src/lib/db.ts` dan beberapa sintaks SQL.
-- Pembatas percobaan masuk dan pembatas formulir website disimpan di memori proses, jadi hanya berlaku untuk satu server.
+- Pembatas percobaan masuk dan pembatas formulir website disimpan di memori proses, jadi hanya berlaku untuk satu server. Pembatas ini membaca IP dari header yang disebut `HEADER_IP` di `.env`. Isi dengan header yang ditulis proxy sendiri (misalnya `x-real-ip`), karena `x-forwarded-for` dari pengunjung bisa dipalsukan. Satu username dikunci 15 menit setelah 10 percobaan dari alamat mana pun.
 - Isi identitas usaha, kontak, dan rekening di Pengaturan. Selama kosong, website tidak menampilkan kontak.
 - Website belum punya foto. Ilustrasi tenda dan ikon katalog adalah gambar SVG pengganti.
 - Aset dilacak per jumlah, belum per unit bernomor seri.

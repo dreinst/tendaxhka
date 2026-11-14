@@ -1,8 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
+import { alamatIp, bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
 import { ambilPesanan, barisPesanan, bulanTerkunci, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni } from "./format.ts";
@@ -40,10 +39,6 @@ function pilihan<T extends string>(nilai: string, daftar: readonly T[], bawaan: 
   return (daftar as readonly string[]).includes(nilai) ? (nilai as T) : bawaan;
 }
 
-async function alamatIp(): Promise<string> {
-  return (await headers()).get("x-forwarded-for")?.split(",")[0].trim() || "lokal";
-}
-
 function pastikanTerbuka(tanggal: string): void {
   if (bulanTerkunci(tanggal)) throw new Galat(`Bulan ${tanggal.slice(0, 7)} sudah ditutup. Buka periodenya dulu di Bagi Hasil.`);
 }
@@ -53,7 +48,15 @@ function pastikanTerbuka(tanggal: string): void {
 export async function masuk(fd: FormData): Promise<void> {
   const username = teks(fd, "username", 60).toLowerCase();
   const sandi = String(fd.get("sandi") ?? "");
-  if (terlaluSering(`masuk:${await alamatIp()}:${username}`, 5, 15)) gagal("/masuk", "Terlalu banyak percobaan. Coba lagi 15 menit lagi.");
+  // Tiga batas sekaligus: per alamat dan username, per username dari alamat mana pun (supaya mengganti
+  // alamat tidak membuka percobaan baru), dan per alamat untuk semua username (menebak banyak akun).
+  const ip = await alamatIp();
+  const kebanyakan = [
+    terlaluSering(`masuk:${ip}:${username}`, 5, 15),
+    terlaluSering(`masuk-akun:${username}`, 10, 15),
+    terlaluSering(`masuk-ip:${ip}`, ip === "tanpa-ip" ? 60 : 20, 15),
+  ].some(Boolean);
+  if (kebanyakan) gagal("/masuk", "Terlalu banyak percobaan. Coba lagi 15 menit lagi.");
 
   // Basis data tanpa pengguna: formulir masuk membuat akun admin pertama. Supaya orang asing yang kebetulan
   // membuka /masuk lebih dulu tidak bisa merebutnya, formulir ini meminta kode SETUP_TOKEN dari .env.
@@ -86,7 +89,13 @@ export async function keluar(): Promise<void> {
 export async function kirimPermintaan(fd: FormData): Promise<void> {
   // Isian jebakan untuk bot. Manusia tidak melihatnya.
   if (teks(fd, "situs")) redirect("/?terkirim=1#kontak");
-  if (terlaluSering(`permintaan:${await alamatIp()}`, 5, 60)) gagal("/#kontak", "Terlalu banyak kiriman. Coba lagi nanti atau hubungi kami lewat telepon.");
+  // Batas per alamat, ditambah batas total supaya CRM tidak bisa dibanjiri walau alamatnya dipalsukan.
+  const ip = await alamatIp();
+  const kebanyakan = [
+    ip !== "tanpa-ip" && terlaluSering(`permintaan:${ip}`, 5, 60),
+    terlaluSering("permintaan-total", 60, 60),
+  ].some(Boolean);
+  if (kebanyakan) gagal("/#kontak", "Terlalu banyak kiriman. Coba lagi nanti atau hubungi kami lewat telepon.");
   const nama = teks(fd, "nama", 80);
   const telepon = teks(fd, "telepon", 30);
   if (!nama || !/^[\d+\s()-]{8,30}$/.test(telepon)) gagal("/#kontak", "Isi nama dan nomor telepon yang bisa dihubungi.");

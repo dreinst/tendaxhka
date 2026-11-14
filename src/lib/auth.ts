@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { Pengguna } from "./data.ts";
@@ -52,11 +52,25 @@ export async function tutupSesi(): Promise<void> {
 
 // Pembatas sederhana di memori proses. Cukup untuk sistem internal dengan satu server.
 const catatan = new Map<string, number[]>();
+const JENDELA_TERLAMA = 60 * 60_000;
 
 export function terlaluSering(kunci: string, maks: number, jendelaMenit: number): boolean {
   const kini = Date.now();
+  // Kunci lama dibuang supaya peta ini tidak terus membesar kalau dibanjiri kunci acak.
+  if (catatan.size > 5000) {
+    for (const [k, daftar] of catatan) if (kini - daftar[daftar.length - 1] > JENDELA_TERLAMA) catatan.delete(k);
+  }
   const baru = (catatan.get(kunci) ?? []).filter((t) => kini - t < jendelaMenit * 60_000);
   baru.push(kini);
   catatan.set(kunci, baru);
   return baru.length > maks;
+}
+
+// Alamat IP pengunjung. Header seperti x-forwarded-for bisa diisi bebas oleh pengirim, jadi hanya dipercaya
+// kalau HEADER_IP di .env menunjuk header yang ditulis ulang oleh proxy sendiri (misalnya x-real-ip dari
+// Nginx atau cf-connecting-ip dari Cloudflare). Tanpa itu, semua pengunjung dianggap satu alamat.
+export async function alamatIp(): Promise<string> {
+  const nama = process.env.HEADER_IP?.trim().toLowerCase();
+  if (!nama) return "tanpa-ip";
+  return (await headers()).get(nama)?.split(",")[0].trim().slice(0, 64) || "tanpa-ip";
 }
