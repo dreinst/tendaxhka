@@ -2,6 +2,44 @@
 
 Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Setiap bagian di bawah sama dengan satu commit, urut dari yang paling mendesak.
 
+| No | Commit | Isi |
+|---|---|---|
+| 1 | `912b130` | Admin pertama wajib memakai kode `SETUP_TOKEN` |
+| 2 | `1dfccde` | Pembatas login tidak bisa diakali header palsu |
+| 3 | `481d77a` | Seed menolak produksi, login tidak membocorkan username, robots.txt bersih |
+| 4 | `b4ae461` | Empat bug logika pesanan, aset, dan bagi hasil |
+| 5 | `39961c7` | Jejak audit |
+| 6 | `a96abdd` | Sesi habis setelah 12 jam tidak dipakai |
+| 7 | `2c87181` | Tombol WhatsApp di website |
+
+## Yang perlu dilakukan di server sebelum deploy
+
+- Isi `SETUP_TOKEN` (minimal 16 karakter) di `.env`, lalu buat admin pertama lewat `/masuk`.
+- Pasang `proxy_set_header X-Real-IP $remote_addr;` di Nginx (atau pakai Cloudflare), lalu isi `HEADER_IP=x-real-ip` (atau `cf-connecting-ip`).
+- Jangan jalankan `npm run seed` di server. Sekarang seed memang menolak kalau `NODE_ENV=production`.
+- Isi nomor telepon atau WhatsApp di Pengaturan supaya tombol WhatsApp muncul di website.
+- Basis data lama tidak perlu dimigrasi manual. Tabel `log_aktivitas` dan kolom `sesi.batas` dibuat otomatis saat aplikasi dibuka.
+
+## Pemeriksaan
+
+- `npm run lint` dan `npm run typecheck` lulus.
+- `npm test`: 18 tes lulus, termasuk 3 tes baru (`hariTerpadat`, jejak audit tidak bisa diubah, `nomorWa`).
+- `npm run build` lulus. Build dijalankan di salinan yang font Google-nya diganti dummy, karena mesin uji tidak bisa mengakses fonts.googleapis.com. Kodenya sendiri tidak diubah untuk itu.
+- Uji di browser dengan `next dev`:
+  - 12 percobaan login salah dengan `x-forwarded-for` berbeda tetap terkunci di percobaan ke-6.
+  - Di basis data kosong, kode penyiapan yang salah ditolak dan kode yang benar membuat admin.
+  - Halaman `/sistem/log` menampilkan catatan login.
+  - Tombol WhatsApp tampil di HP dan desktop.
+- Migrasi kolom `sesi.batas` diuji dengan basis data yang dibuat dari skema `b3faf4f`.
+
+## Belum dikerjakan, perlu keputusan bersama
+
+- Peran partner masih bisa melihat nama, telepon, dan email semua pelanggan. Apakah memang perlu, atau cukup angka keuangan saja?
+- Rugi ikut dibagi 50:50 di `hitungLaba`. Deck kerja sama hanya menyebut nett profit, jadi ini perlu ditulis di perjanjian.
+- Persen pajak, persen cadangan, dan basis pendapatan (kas atau akrual) masih nilai bawaan.
+- Fitur yang dijanjikan deck tapi belum ada: rekonsiliasi bank, notifikasi WhatsApp otomatis, data kru sebagai tabel, dan KPI klien korporat.
+- CSP masih memakai `'unsafe-inline'` untuk skrip bawaan Next. Risikonya kecil karena React sudah meng-escape isi, tapi bisa diperketat dengan nonce nanti.
+
 ## 1. Admin pertama butuh kode penyiapan
 
 Masalah: saat basis data kosong, siapa pun yang pertama membuka `/masuk` bisa membuat akun admin. Kalau situs sudah online sebelum pemilik sempat membuat akun, orang asing bisa menguasai sistem.
