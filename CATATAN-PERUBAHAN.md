@@ -88,3 +88,16 @@ Perubahan:
 - Tabel `sesi` punya kolom baru `batas` (umur maksimal 14 hari sejak masuk). `kedaluwarsa` sekarang berarti batas tidak aktif: 12 jam, bergeser maju setiap kali sesi dipakai, tapi tidak pernah melewati `batas`.
 - Supaya tidak menulis ke basis data di setiap permintaan, penggeseran hanya terjadi kalau sisa waktunya sudah berkurang lebih dari 5 menit.
 - Basis data lama otomatis mendapat kolom `batas` lewat pengecekan di `src/lib/db.ts`, karena `ALTER TABLE` di SQLite tidak punya `IF NOT EXISTS`. Sesi lama tetap berlaku sampai batas 14 harinya. Ini sudah diuji dengan basis data dari skema `b3faf4f`.
+
+## 7. Tombol WhatsApp di website
+
+Masalah: website hanya punya formulir. Calon penyewa tenda di Indonesia lebih sering langsung chat WhatsApp, dan tanpa tombol itu banyak calon klien yang batal menghubungi.
+
+Perubahan:
+
+- Pengaturan punya kolom baru "Nomor WhatsApp, kalau beda dari telepon". Kalau kosong, nomor telepon yang dipakai.
+- `nomorWa()` di `src/lib/hitung.ts` mengubah "0812-...", "+62 812 ...", atau "812 ..." menjadi format `62812...` untuk `wa.me`. Nomor yang bukan nomor seluler (misalnya telepon kantor) tidak memunculkan tombol. Ada tesnya.
+- Tombol "Chat WhatsApp" muncul di header (layar lebar), di bagian atas halaman, di bagian kontak, dan sebagai tombol mengambang di HP. Tiap item katalog punya tautan "Tanya lewat WA" dengan nama barangnya sudah terisi di pesan.
+- Tautan "Masuk sistem" di footer website diganti nomor telepon. Pelanggan tidak perlu tautan itu, dan tim cukup menyimpan alamat `/masuk` di bookmark. Ini hanya merapikan tampilan. Keamanannya tetap bergantung pada `wajib()`.
+
+Catatan: chat WhatsApp tidak otomatis masuk CRM. Sales perlu menambah kontaknya manual dengan sumber "whatsapp" supaya laporan sumber lead tetap lengkap.

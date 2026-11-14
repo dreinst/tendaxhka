@@ -103,6 +103,7 @@ export type Biaya = {
 export const PENGATURAN_BAWAAN = {
   nama_usaha: "Tenda Indonesia",
   telepon: "",
+  whatsapp: "",
   email: "",
   alamat: "",
   rekening: "",

@@ -4,6 +4,7 @@ import { kirimPermintaan } from "@/lib/aksi";
 import { pengaturan, type Aset } from "@/lib/data";
 import { semua } from "@/lib/db";
 import { rupiah } from "@/lib/format";
+import { nomorWa } from "@/lib/hitung";
 
 // Katalog dan kontak dibaca dari basis data, jadi halaman dirender per permintaan.
 export const dynamic = "force-dynamic";
@@ -64,6 +65,11 @@ function Ikon({ kategori }: { kategori: string }) {
   return <svg viewBox="0 0 64 64" aria-hidden className="size-24">{isi}</svg>;
 }
 
+// Tautan chat WhatsApp dengan pesan pembuka yang sudah terisi.
+function tautanWa(nomor: string, pesan: string): string {
+  return `https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`;
+}
+
 // Label harga berbentuk tag kanvas dengan mata ayam, seperti penanda di tali tenda.
 function LabelHarga({ harga, satuan }: { harga: number; satuan: string }) {
   return (
@@ -83,6 +89,9 @@ function LabelHarga({ harga, satuan }: { harga: number; satuan: string }) {
 export default async function Beranda({ searchParams }: { searchParams: Cari }) {
   const sp = await searchParams;
   const s = pengaturan();
+  // Nomor WhatsApp khusus dipakai lebih dulu, lalu nomor telepon. Tanpa nomor seluler yang sah, tombol tidak tampil.
+  const wa = nomorWa(s.whatsapp) ?? nomorWa(s.telepon);
+  const sapa = `Halo ${s.nama_usaha}, saya ingin tanya sewa tenda.`;
   const aset = semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND tampil_web = 1 ORDER BY kategori, harga DESC");
   // Tenda tampil paling atas, kategori lain mengikuti abjad.
   const kategori = [...new Set(aset.map((a) => a.kategori))].sort(
@@ -101,7 +110,14 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
             <a href="#cara-sewa" className="hover:text-terpal-gelap">Cara sewa</a>
             <a href="#kontak" className="hover:text-terpal-gelap">Kontak</a>
           </nav>
-          <a href="#kontak" className="tombol tombol-utama">Minta penawaran</a>
+          <div className="flex gap-2">
+            {wa && (
+              <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol hidden sm:inline-flex">
+                Chat WhatsApp
+              </a>
+            )}
+            <a href="#kontak" className="tombol tombol-utama">Minta penawaran</a>
+          </div>
         </div>
       </header>
 
@@ -119,6 +135,11 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <a href="#kontak" className="tombol tombol-utama px-5 text-base">Minta penawaran</a>
+                {wa && (
+                  <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol px-5 text-base">
+                    Chat WhatsApp
+                  </a>
+                )}
                 <a href="#katalog" className="tombol px-5 text-base">Lihat katalog</a>
               </div>
             </div>
@@ -142,7 +163,19 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                       {a.nama} {a.ukuran && <span className="font-isi text-sm font-semibold text-tinta-lembut">{a.ukuran}</span>}
                     </h4>
                     {a.deskripsi && <p className="mt-1 flex-1 text-sm text-tinta-lembut">{a.deskripsi}</p>}
-                    <div className="mt-4"><LabelHarga harga={a.harga} satuan={a.satuan} /></div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                      <LabelHarga harga={a.harga} satuan={a.satuan} />
+                      {wa && (
+                        <a
+                          href={tautanWa(wa, `Halo ${s.nama_usaha}, saya ingin tanya sewa ${[a.nama, a.ukuran].filter(Boolean).join(" ")}.`)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-semibold underline underline-offset-2 hover:text-terpal-gelap"
+                        >
+                          Tanya lewat WA
+                        </a>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -169,6 +202,11 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
           <div>
             <h2 className="text-2xl font-bold md:text-3xl">Minta penawaran</h2>
             <p className="mt-3 text-tinta-lembut">Ceritakan acaranya. Kami menghubungi Anda lewat nomor yang diisi.</p>
+            {wa && (
+              <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol tombol-utama mt-5 px-5 text-base">
+                Lebih cepat lewat WhatsApp
+              </a>
+            )}
             <dl className="mt-6 space-y-2 text-sm">
               {s.telepon && <div><dt className="inline font-semibold">Telepon: </dt><dd className="inline">{s.telepon}</dd></div>}
               {s.email && <div><dt className="inline font-semibold">Email: </dt><dd className="inline">{s.email}</dd></div>}
@@ -209,9 +247,20 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
       <footer className="border-t border-garis">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-tinta-lembut">
           <p>{s.nama_usaha}</p>
-          <Link href="/masuk" className="underline underline-offset-2">Masuk sistem</Link>
+          {s.telepon && <p>{s.telepon}</p>}
         </div>
       </footer>
+
+      {wa && (
+        <a
+          href={tautanWa(wa, sapa)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tombol tombol-utama fixed bottom-4 right-4 z-50 px-5 shadow-lg sm:hidden"
+        >
+          Chat WhatsApp
+        </a>
+      )}
     </>
   );
 }

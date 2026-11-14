@@ -141,3 +141,12 @@ export function bacaChecklist(json: string): ButirChecklist[] {
     return [];
   }
 }
+
+// Nomor untuk tautan wa.me: hanya angka dengan kode negara 62. Menerima "0812-3456-7890", "+62 812 3456 7890",
+// atau "812 3456 7890". Nomor yang tidak terlihat seperti nomor seluler Indonesia menghasilkan null.
+export function nomorWa(teks: string): string | null {
+  let n = teks.replace(/\D/g, "");
+  if (n.startsWith("0")) n = `62${n.slice(1)}`;
+  else if (n.startsWith("8")) n = `62${n}`;
+  return /^628\d{7,11}$/.test(n) ? n : null;
+}

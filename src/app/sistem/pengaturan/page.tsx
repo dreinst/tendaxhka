@@ -56,6 +56,9 @@ export default async function Pengaturan({ searchParams }: { searchParams: Cari 
           <Bidang label="Telepon atau WhatsApp" id="telepon">
             <input className="isian" id="telepon" name="telepon" maxLength={30} defaultValue={s.telepon} />
           </Bidang>
+          <Bidang label="Nomor WhatsApp, kalau beda dari telepon" id="whatsapp">
+            <input className="isian" id="whatsapp" name="whatsapp" maxLength={30} inputMode="tel" placeholder="Kosongkan untuk memakai nomor telepon" defaultValue={s.whatsapp} />
+          </Bidang>
           <Bidang label="Email" id="email">
             <input className="isian" id="email" name="email" type="email" maxLength={120} defaultValue={s.email} />
           </Bidang>

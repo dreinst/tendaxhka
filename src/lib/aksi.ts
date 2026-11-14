@@ -661,6 +661,7 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
   const isi: Record<keyof typeof PENGATURAN_BAWAAN, string> = {
     nama_usaha: teks(fd, "nama_usaha", 80) || PENGATURAN_BAWAAN.nama_usaha,
     telepon: teks(fd, "telepon", 30),
+    whatsapp: teks(fd, "whatsapp", 30),
     email: teks(fd, "email", 120),
     alamat: teks(fd, "alamat", 300),
     rekening: teks(fd, "rekening", 200),

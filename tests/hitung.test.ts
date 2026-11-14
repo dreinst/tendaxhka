@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bacaChecklist, batasBulan, boleh, hitungLaba, rentangHari, sisaTersedia, tanggalSah, totalPesanan, utilisasi, type Pakai } from "../src/lib/hitung.ts";
+import { bacaChecklist, batasBulan, boleh, hitungLaba, nomorWa, rentangHari, sisaTersedia, tanggalSah, totalPesanan, utilisasi, type Pakai } from "../src/lib/hitung.ts";
 
 test("total pesanan mengalikan jumlah, hari, dan harga lalu memotong diskon", () => {
   const baris = [{ jumlah: 4, hari: 2, harga: 900_000 }, { jumlah: 1, hari: 1, harga: 1_500_000 }];
@@ -66,4 +66,12 @@ test("partner hanya melihat, kru hanya mencentang", () => {
 test("checklist yang rusak dibaca sebagai kosong", () => {
   assert.deepEqual(bacaChecklist("bukan json"), []);
   assert.deepEqual(bacaChecklist('[{"teks":"a","beres":true},{"x":1}]'), [{ teks: "a", beres: true }]);
+});
+
+test("nomor WhatsApp dinormalkan ke format 62", () => {
+  assert.equal(nomorWa("0812-3456-7890"), "6281234567890");
+  assert.equal(nomorWa("+62 812 3456 7890"), "6281234567890");
+  assert.equal(nomorWa("812 3456 7890"), "6281234567890");
+  assert.equal(nomorWa("(0341) 123456"), null);
+  assert.equal(nomorWa(""), null);
 });
