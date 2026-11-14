@@ -8,17 +8,33 @@ import { hashToken, tokenBaru } from "./sandi.ts";
 
 export const COOKIE_SESI = "sesi_tenda";
 const UMUR_HARI = 14;
+// Sesi yang tidak dipakai selama ini dianggap habis, misalnya akun yang lupa keluar di perangkat orang lain.
+const TIDAK_AKTIF_JAM = 12;
+const TIDAK_AKTIF = TIDAK_AKTIF_JAM * 3600_000;
 
 export const penggunaSaatIni = cache(async (): Promise<Pengguna | null> => {
   const token = (await cookies()).get(COOKIE_SESI)?.value;
   if (!token) return null;
-  const u = satu<Pengguna>(
-    `SELECT u.id, u.nama, u.username, u.peran, u.aktif FROM sesi s JOIN pengguna u ON u.id = s.pengguna_id
-     WHERE s.token = ? AND s.kedaluwarsa > ? AND u.aktif = 1`,
-    hashToken(token),
-    new Date().toISOString(),
+  const hash = hashToken(token);
+  const kini = Date.now();
+  const u = satu<Pengguna & { kedaluwarsa: string }>(
+    `SELECT u.id, u.nama, u.username, u.peran, u.aktif, s.kedaluwarsa FROM sesi s JOIN pengguna u ON u.id = s.pengguna_id
+     WHERE s.token = ? AND s.kedaluwarsa > ? AND (s.batas IS NULL OR s.batas > ?) AND u.aktif = 1`,
+    hash,
+    new Date(kini).toISOString(),
+    new Date(kini).toISOString(),
   );
-  return u ?? null;
+  if (!u) return null;
+  // Geser batas tidak aktif ke depan, paling jauh sampai batas umur sesi. Supaya tidak menulis ke basis data
+  // di setiap permintaan, penggeseran hanya dilakukan kalau sisa waktunya sudah berkurang lebih dari 5 menit.
+  if (Date.parse(u.kedaluwarsa) - kini < TIDAK_AKTIF - 5 * 60_000) {
+    jalankan(
+      "UPDATE sesi SET batas = COALESCE(batas, kedaluwarsa), kedaluwarsa = MIN(?, COALESCE(batas, kedaluwarsa)) WHERE token = ?",
+      new Date(kini + TIDAK_AKTIF).toISOString(),
+      hash,
+    );
+  }
+  return { id: u.id, nama: u.nama, username: u.username, peran: u.peran, aktif: u.aktif };
 });
 
 // Dipanggil di awal setiap halaman dan setiap aksi server. Menu hanya menyembunyikan tautan.
@@ -32,8 +48,14 @@ export async function wajib(hak?: Hak): Promise<Pengguna> {
 export async function bukaSesi(penggunaId: number): Promise<void> {
   const { token, hash } = tokenBaru();
   const kedaluwarsa = new Date(Date.now() + UMUR_HARI * 864e5);
-  jalankan("DELETE FROM sesi WHERE kedaluwarsa <= ?", new Date().toISOString());
-  jalankan("INSERT INTO sesi (token, pengguna_id, kedaluwarsa) VALUES (?, ?, ?)", hash, penggunaId, kedaluwarsa.toISOString());
+  jalankan("DELETE FROM sesi WHERE kedaluwarsa <= ? OR batas <= ?", new Date().toISOString(), new Date().toISOString());
+  jalankan(
+    "INSERT INTO sesi (token, pengguna_id, kedaluwarsa, batas) VALUES (?, ?, ?, ?)",
+    hash,
+    penggunaId,
+    new Date(Date.now() + TIDAK_AKTIF).toISOString(),
+    kedaluwarsa.toISOString(),
+  );
   (await cookies()).set(COOKIE_SESI, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

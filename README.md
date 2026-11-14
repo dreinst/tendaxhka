@@ -107,7 +107,7 @@ Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".ba
 - `db/skema.sql`: skema.
 - `src/lib/hitung.ts`: hitungan murni (ketersediaan, total, utilisasi, bagi hasil, hak akses).
 - `src/lib/data.ts`: kueri baca. `src/lib/aksi.ts`: semua aksi server.
-- `src/lib/auth.ts`, `src/lib/sandi.ts`: sesi dan kata sandi (scrypt, token sesi disimpan sebagai hash).
+- `src/lib/auth.ts`, `src/lib/sandi.ts`: sesi dan kata sandi (scrypt, token sesi disimpan sebagai hash). Sesi habis setelah 12 jam tidak dipakai dan paling lama 14 hari sejak masuk.
 - `src/app/page.tsx`: website. `src/app/sistem/**`: halaman sistem.
 - `tests/`: uji hitungan dan uji kueri dengan basis data di memori.
 

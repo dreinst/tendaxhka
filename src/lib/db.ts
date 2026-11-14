@@ -13,6 +13,9 @@ export function db(): DatabaseSync {
     const d = new DatabaseSync(jalur);
     d.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     d.exec(readFileSync(join(process.cwd(), "db", "skema.sql"), "utf8"));
+    // Kolom yang ditambahkan sesudah skema awal. ALTER TABLE tidak punya IF NOT EXISTS, jadi dicek dulu.
+    const kolomSesi = d.prepare("PRAGMA table_info(sesi)").all() as { name: string }[];
+    if (!kolomSesi.some((k) => k.name === "batas")) d.exec("ALTER TABLE sesi ADD COLUMN batas TEXT");
     g.__dbTenda = d;
   }
   return g.__dbTenda;

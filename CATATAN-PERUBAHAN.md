@@ -78,3 +78,13 @@ Perubahan:
 - Tes baru memastikan catatan tidak bisa diubah atau dihapus.
 
 Batasan: pemicu hanya mencegah perubahan lewat aplikasi. Siapa pun yang memegang berkas `tenda.db` di server tetap bisa mengubahnya. Sebaiknya cadangan basis data rutin disalin ke tempat yang bisa diakses kedua partner.
+
+## 6. Sesi habis kalau lama tidak dipakai
+
+Masalah: sesi berlaku 14 hari penuh tanpa batas tidak aktif. Akun yang lupa keluar di laptop atau HP orang lain tetap terbuka selama dua minggu.
+
+Perubahan:
+
+- Tabel `sesi` punya kolom baru `batas` (umur maksimal 14 hari sejak masuk). `kedaluwarsa` sekarang berarti batas tidak aktif: 12 jam, bergeser maju setiap kali sesi dipakai, tapi tidak pernah melewati `batas`.
+- Supaya tidak menulis ke basis data di setiap permintaan, penggeseran hanya terjadi kalau sisa waktunya sudah berkurang lebih dari 5 menit.
+- Basis data lama otomatis mendapat kolom `batas` lewat pengecekan di `src/lib/db.ts`, karena `ALTER TABLE` di SQLite tidak punya `IF NOT EXISTS`. Sesi lama tetap berlaku sampai batas 14 harinya. Ini sudah diuji dengan basis data dari skema `b3faf4f`.

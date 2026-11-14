@@ -11,10 +11,13 @@ CREATE TABLE IF NOT EXISTS pengguna (
   aktif INTEGER NOT NULL DEFAULT 1
 );
 
+-- kedaluwarsa bergeser maju setiap kali sesi dipakai (batas tidak aktif). batas adalah umur maksimal sesi
+-- sejak masuk dan tidak pernah bergeser. Basis data lama mendapat kolom batas lewat src/lib/db.ts.
 CREATE TABLE IF NOT EXISTS sesi (
   token TEXT PRIMARY KEY,
   pengguna_id INTEGER NOT NULL REFERENCES pengguna (id) ON DELETE CASCADE,
-  kedaluwarsa TEXT NOT NULL
+  kedaluwarsa TEXT NOT NULL,
+  batas TEXT
 );
 
 CREATE TABLE IF NOT EXISTS pengaturan (
