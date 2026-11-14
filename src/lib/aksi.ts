@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { alamatIp, bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
-import { ambilPesanan, barisPesanan, bulanTerkunci, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, type Aset } from "./data.ts";
+import { ambilPesanan, barisPesanan, bulanTerkunci, catatLog, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
-import { hariIni } from "./format.ts";
+import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
 import { bacaChecklist, tambahHari, tanggalSah, type ButirChecklist } from "./hitung.ts";
 import { cocokSandi, cocokSandiPalsu, hashSandi, samaAman } from "./sandi.ts";
 
@@ -69,13 +69,15 @@ export async function masuk(fd: FormData): Promise<void> {
       gagal("/masuk", "Isi nama, username (3 sampai 30 huruf kecil atau angka), dan kata sandi minimal 8 karakter.");
     }
     const id = jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, 'admin')", nama, username, hashSandi(sandi));
+    catatLog({ id, nama }, "Buat admin pertama", `Username ${username}`);
     await bukaSesi(id);
     redirect("/sistem");
   }
 
-  const u = satu<{ id: number; sandi: string }>("SELECT id, sandi FROM pengguna WHERE username = ? AND aktif = 1", username);
+  const u = satu<{ id: number; nama: string; sandi: string }>("SELECT id, nama, sandi FROM pengguna WHERE username = ? AND aktif = 1", username);
   const cocok = u ? cocokSandi(sandi, u.sandi) : cocokSandiPalsu(sandi);
   if (!u || !cocok) gagal("/masuk", "Username atau kata sandi salah.");
+  catatLog(u, "Masuk", ip === "tanpa-ip" ? "" : `IP ${ip}`);
   await bukaSesi(u.id);
   redirect("/sistem");
 }
@@ -165,8 +167,9 @@ export async function ubahTahap(id: number, tahap: string): Promise<void> {
 // Pesanan: penawaran, booking, pelaksanaan, faktur
 
 export async function simpanPesanan(fd: FormData): Promise<void> {
-  await wajib("pesanan.tulis");
+  const u = await wajib("pesanan.tulis");
   let id = bulat(fd.get("id"));
+  const totalLama = id ? ambilPesanan(id)?.total : undefined;
   const kontakId = bulat(fd.get("kontak_id"));
   const kembali = id ? `/sistem/pesanan/${id}` : `/sistem/pesanan/baru?kontak=${kontakId}`;
   const acara = teks(fd, "acara", 160);
@@ -251,6 +254,9 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
       const kurang = kekurangan(id);
       if (kurang.length) throw new Galat(`Aset tidak cukup di tanggal itu. ${kurang.join("; ")}.`);
     }
+    const p = ambilPesanan(id)!;
+    if (totalLama === undefined) catatLog(u, "Buat penawaran", `${p.nomor}, ${p.acara}, total ${rupiah(p.total)}`);
+    else catatLog(u, "Ubah pesanan", `${p.nomor}, total dari ${rupiah(totalLama)} menjadi ${rupiah(p.total)}, tanggal ${mulai} sampai ${selesai}`);
   });
   if (galat) gagal(kembali, galat);
   redirect(`/sistem/pesanan/${id}`);
@@ -272,7 +278,7 @@ function butirBawaan(jenis: string): string {
 }
 
 export async function ubahStatus(id: number, tujuan: string): Promise<void> {
-  await wajib("pesanan.tulis");
+  const u = await wajib("pesanan.tulis");
   const kembali = `/sistem/pesanan/${id}`;
   const galat = coba(() => {
     const p = ambilPesanan(id);
@@ -308,13 +314,14 @@ export async function ubahStatus(id: number, tujuan: string): Promise<void> {
       jalankan("UPDATE pesanan SET tgl_faktur = ? WHERE id = ?", hariIni(), id);
     }
     jalankan("UPDATE pesanan SET status = ? WHERE id = ?", tujuan, id);
+    catatLog(u, "Ubah status pesanan", `${p.nomor}, dari ${LABEL_STATUS[p.status]} ke ${LABEL_STATUS[tujuan]}`);
   });
   if (galat) gagal(kembali, galat);
   redirect(kembali);
 }
 
 export async function terbitkanFaktur(id: number): Promise<void> {
-  await wajib("pesanan.tulis");
+  const u = await wajib("pesanan.tulis");
   const kembali = `/sistem/pesanan/${id}`;
   const galat = coba(() => {
     const p = ambilPesanan(id);
@@ -322,6 +329,7 @@ export async function terbitkanFaktur(id: number): Promise<void> {
     if (p.tgl_faktur) throw new Galat("Faktur sudah terbit.");
     pastikanTerbuka(hariIni());
     jalankan("UPDATE pesanan SET tgl_faktur = ? WHERE id = ?", hariIni(), id);
+    catatLog(u, "Terbitkan faktur", `${p.nomor}, total ${rupiah(p.total)}`);
   });
   if (galat) gagal(kembali, galat);
   redirect(kembali);
@@ -366,13 +374,14 @@ export async function duplikatPesanan(id: number, fd: FormData): Promise<void> {
 }
 
 export async function hapusPesanan(id: number): Promise<void> {
-  await wajib("pesanan.tulis");
+  const u = await wajib("pesanan.tulis");
   const galat = coba(() => {
     const p = ambilPesanan(id);
     if (!p) throw new Galat("Pesanan tidak ditemukan.");
     if (p.status !== "penawaran" && p.status !== "batal") throw new Galat("Hanya penawaran atau pesanan batal yang bisa dihapus.");
     if (p.dibayar > 0) throw new Galat("Pesanan ini punya pembayaran.");
     jalankan("DELETE FROM pesanan WHERE id = ?", id);
+    catatLog(u, "Hapus pesanan", `${p.nomor}, ${p.acara}, total ${rupiah(p.total)}`);
   });
   if (galat) gagal(`/sistem/pesanan/${id}`, galat);
   redirect("/sistem/pesanan");
@@ -381,7 +390,7 @@ export async function hapusPesanan(id: number): Promise<void> {
 // Uang masuk dan biaya
 
 export async function tambahPembayaran(pesananId: number, fd: FormData): Promise<void> {
-  await wajib("pesanan.tulis");
+  const u = await wajib("pesanan.tulis");
   const kembali = `/sistem/pesanan/${pesananId}`;
   const tgl = teks(fd, "tanggal", 10);
   const jumlah = bulat(fd.get("jumlah"));
@@ -391,34 +400,40 @@ export async function tambahPembayaran(pesananId: number, fd: FormData): Promise
     if (!tanggalSah(tgl) || jumlah <= 0) throw new Galat("Isi tanggal dan jumlah pembayaran.");
     if (jumlah > p.sisa) throw new Galat("Jumlah melebihi sisa tagihan.");
     pastikanTerbuka(tgl);
+    const metode = pilihan(teks(fd, "metode"), ["transfer", "tunai", "lainnya"], "transfer");
     jalankan(
       "INSERT INTO pembayaran (pesanan_id, tanggal, jumlah, metode, catatan) VALUES (?, ?, ?, ?, ?)",
       pesananId,
       tgl,
       jumlah,
-      pilihan(teks(fd, "metode"), ["transfer", "tunai", "lainnya"], "transfer"),
+      metode,
       teks(fd, "catatan", 200),
     );
+    catatLog(u, "Catat pembayaran masuk", `${p.nomor}, ${rupiah(jumlah)} lewat ${metode}, tanggal ${tgl}`);
   });
   if (galat) gagal(kembali, galat);
   redirect(kembali);
 }
 
 export async function hapusPembayaran(id: number): Promise<void> {
-  await wajib("keuangan.tulis");
-  const b = satu<{ pesanan_id: number; tanggal: string }>("SELECT pesanan_id, tanggal FROM pembayaran WHERE id = ?", id);
+  const u = await wajib("keuangan.tulis");
+  const b = satu<{ pesanan_id: number; tanggal: string; jumlah: number; nomor: string }>(
+    "SELECT b.pesanan_id, b.tanggal, b.jumlah, p.nomor FROM pembayaran b JOIN pesanan p ON p.id = b.pesanan_id WHERE b.id = ?",
+    id,
+  );
   if (!b) redirect("/sistem/pesanan");
   const kembali = `/sistem/pesanan/${b.pesanan_id}`;
   const galat = coba(() => {
     pastikanTerbuka(b.tanggal);
     jalankan("DELETE FROM pembayaran WHERE id = ?", id);
+    catatLog(u, "Hapus pembayaran masuk", `${b.nomor}, ${rupiah(b.jumlah)}, tanggal ${b.tanggal}`);
   });
   if (galat) gagal(kembali, galat);
   redirect(kembali);
 }
 
 export async function tambahBiaya(fd: FormData): Promise<void> {
-  await wajib("keuangan.tulis");
+  const u = await wajib("keuangan.tulis");
   const pesananId = bulat(fd.get("pesanan_id"));
   const tgl = teks(fd, "tanggal", 10);
   const kembali = pesananId ? `/sistem/pesanan/${pesananId}` : `/sistem/keuangan?bulan=${tgl.slice(0, 7)}`;
@@ -437,19 +452,24 @@ export async function tambahBiaya(fd: FormData): Promise<void> {
       jumlah,
       teks(fd, "keterangan", 300),
     );
+    catatLog(u, pesananId ? "Catat biaya langsung" : "Catat biaya operasional", `${kategori}, ${rupiah(jumlah)}, tanggal ${tgl}${pesananId ? `, pesanan #${pesananId}` : ""}`);
   });
   if (galat) gagal(tanggalSah(tgl) ? kembali : "/sistem/keuangan", galat);
   redirect(kembali);
 }
 
 export async function hapusBiaya(id: number): Promise<void> {
-  await wajib("keuangan.tulis");
-  const b = satu<{ pesanan_id: number | null; tanggal: string }>("SELECT pesanan_id, tanggal FROM biaya WHERE id = ?", id);
+  const u = await wajib("keuangan.tulis");
+  const b = satu<{ pesanan_id: number | null; tanggal: string; jenis: string; kategori: string; jumlah: number }>(
+    "SELECT pesanan_id, tanggal, jenis, kategori, jumlah FROM biaya WHERE id = ?",
+    id,
+  );
   if (!b) redirect("/sistem/keuangan");
   const kembali = b.pesanan_id ? `/sistem/pesanan/${b.pesanan_id}` : `/sistem/keuangan?bulan=${b.tanggal.slice(0, 7)}`;
   const galat = coba(() => {
     pastikanTerbuka(b.tanggal);
     jalankan("DELETE FROM biaya WHERE id = ?", id);
+    catatLog(u, `Hapus biaya ${b.jenis}`, `${b.kategori}, ${rupiah(b.jumlah)}, tanggal ${b.tanggal}`);
   });
   if (galat) gagal(kembali, galat);
   redirect(kembali);
@@ -458,7 +478,7 @@ export async function hapusBiaya(id: number): Promise<void> {
 // Aset dan perawatan
 
 export async function simpanAset(fd: FormData): Promise<void> {
-  await wajib("aset.tulis");
+  const u = await wajib("aset.tulis");
   const id = bulat(fd.get("id"));
   const kembali = id ? `/sistem/aset/${id}` : "/sistem/aset";
   const kode = teks(fd, "kode", 20).toUpperCase();
@@ -479,6 +499,10 @@ export async function simpanAset(fd: FormData): Promise<void> {
     fd.get("aktif") ? 1 : 0,
   ];
   if (id) {
+    const lama = satu<Aset>("SELECT * FROM aset WHERE id = ?", id);
+    if (lama && (lama.jumlah !== isi[5] || lama.harga !== isi[6])) {
+      catatLog(u, "Ubah aset", `${kode} ${nama}, jumlah dari ${lama.jumlah} menjadi ${isi[5]}, harga dari ${rupiah(lama.harga)} menjadi ${rupiah(Number(isi[6]))}`);
+    }
     jalankan(
       "UPDATE aset SET kode = ?, nama = ?, kategori = ?, ukuran = ?, satuan = ?, jumlah = ?, harga = ?, deskripsi = ?, tampil_web = ?, aktif = ? WHERE id = ?",
       ...isi,
@@ -492,6 +516,7 @@ export async function simpanAset(fd: FormData): Promise<void> {
       "INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi, tampil_web, aktif) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ...isi,
     );
+    catatLog(u, "Tambah aset", `${kode} ${nama}, jumlah ${isi[5]}, harga ${rupiah(Number(isi[6]))}`);
   }
   redirect("/sistem/aset");
 }
@@ -576,27 +601,39 @@ export async function centangTugas(id: number, fd: FormData): Promise<void> {
 // Tutup periode dan bagi hasil
 
 export async function kunciPeriode(bulan: string): Promise<void> {
-  await wajib("keuangan.tulis");
+  const u = await wajib("keuangan.tulis");
   const galat = coba(() => {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bulan) || bulan > hariIni().slice(0, 7)) throw new Galat("Bulan itu belum bisa ditutup.");
     if (bulanTerkunci(`${bulan}-01`)) throw new Galat("Bulan itu sudah ditutup.");
     kunciBulan(bulan, new Date().toISOString());
+    const p = satu<{ laba_bersih: number; bagian_tenda: number; bagian_hka: number }>(
+      "SELECT laba_bersih, bagian_tenda, bagian_hka FROM periode WHERE bulan = ?",
+      bulan,
+    )!;
+    catatLog(u, "Tutup periode", `${bulan}, laba bersih ${rupiah(p.laba_bersih)}, Tenda ${rupiah(p.bagian_tenda)}, HKA ${rupiah(p.bagian_hka)}`);
   });
   if (galat) gagal("/sistem/bagi-hasil", galat);
   redirect("/sistem/bagi-hasil");
 }
 
 export async function bukaPeriode(bulan: string): Promise<void> {
-  await wajib("keuangan.tulis");
-  const p = satu<{ dibayar_tenda: number; dibayar_hka: number }>("SELECT dibayar_tenda, dibayar_hka FROM periode WHERE bulan = ?", bulan);
+  const u = await wajib("keuangan.tulis");
+  const p = satu<{ dibayar_tenda: number; dibayar_hka: number; laba_bersih: number }>(
+    "SELECT dibayar_tenda, dibayar_hka, laba_bersih FROM periode WHERE bulan = ?",
+    bulan,
+  );
   if (p && (p.dibayar_tenda > 0 || p.dibayar_hka > 0)) gagal("/sistem/bagi-hasil", "Periode ini sudah punya pembayaran ke partner. Nolkan dulu sebelum dibuka.");
   jalankan("DELETE FROM periode WHERE bulan = ?", bulan);
+  if (p) catatLog(u, "Buka kembali periode", `${bulan}, laba bersih yang dibekukan sebelumnya ${rupiah(p.laba_bersih)}`);
   redirect("/sistem/bagi-hasil");
 }
 
 export async function catatBayarPartner(bulan: string, fd: FormData): Promise<void> {
-  await wajib("keuangan.tulis");
-  const p = satu<{ bagian_tenda: number; bagian_hka: number }>("SELECT bagian_tenda, bagian_hka FROM periode WHERE bulan = ?", bulan);
+  const u = await wajib("keuangan.tulis");
+  const p = satu<{ bagian_tenda: number; bagian_hka: number; dibayar_tenda: number; dibayar_hka: number }>(
+    "SELECT bagian_tenda, bagian_hka, dibayar_tenda, dibayar_hka FROM periode WHERE bulan = ?",
+    bulan,
+  );
   if (!p) gagal("/sistem/bagi-hasil", "Periode itu belum ditutup.");
   const tenda = Math.max(0, bulat(fd.get("dibayar_tenda")));
   const hka = Math.max(0, bulat(fd.get("dibayar_hka")));
@@ -605,13 +642,21 @@ export async function catatBayarPartner(bulan: string, fd: FormData): Promise<vo
     gagal("/sistem/bagi-hasil", "Pembayaran ke partner tidak boleh melebihi bagiannya di periode itu.");
   }
   jalankan("UPDATE periode SET dibayar_tenda = ?, dibayar_hka = ?, catatan = ? WHERE bulan = ?", tenda, hka, teks(fd, "catatan", 300), bulan);
+  if (tenda !== p.dibayar_tenda || hka !== p.dibayar_hka) {
+    catatLog(
+      u,
+      "Catat pembayaran ke partner",
+      `${bulan}, Tenda dari ${rupiah(p.dibayar_tenda)} menjadi ${rupiah(tenda)}, HKA dari ${rupiah(p.dibayar_hka)} menjadi ${rupiah(hka)}`,
+    );
+  }
   redirect("/sistem/bagi-hasil");
 }
 
 // Pengaturan dan pengguna
 
 export async function simpanPengaturan(fd: FormData): Promise<void> {
-  await wajib("pengaturan");
+  const u = await wajib("pengaturan");
+  const lama = pengaturan();
   const angka = (k: string, maks: number) => String(Math.min(maks, Math.max(0, Number(teks(fd, k, 10).replace(",", ".")) || 0)));
   const isi: Record<keyof typeof PENGATURAN_BAWAAN, string> = {
     nama_usaha: teks(fd, "nama_usaha", 80) || PENGATURAN_BAWAAN.nama_usaha,
@@ -629,6 +674,12 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
   transaksi(() => {
     for (const [k, v] of Object.entries(isi)) {
       jalankan("INSERT INTO pengaturan (kunci, nilai) VALUES (?, ?) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai", k, v);
+    }
+    // Kunci yang memengaruhi bagi hasil dicatat lengkap dengan nilai lamanya. Yang lain cukup namanya.
+    const rumus = ["basis", "persen_cadangan", "persen_pajak", "porsi_tenda"];
+    const berubah = (Object.keys(isi) as (keyof typeof isi)[]).filter((k) => lama[k] !== isi[k]);
+    if (berubah.length) {
+      catatLog(u, "Ubah pengaturan", berubah.map((k) => (rumus.includes(k) ? `${k} dari ${lama[k]} menjadi ${isi[k]}` : k)).join("; "));
     }
   });
   redirect("/sistem/pengaturan?ok=1");
@@ -655,8 +706,10 @@ export async function simpanPengguna(fd: FormData): Promise<void> {
       if (id !== saya.id) jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
     }
     if (!aktif) jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
+    catatLog(saya, "Ubah pengguna", `${username}, peran ${peran}, ${aktif ? "aktif" : "nonaktif"}${sandi ? ", kata sandi diganti" : ""}`);
   } else {
     jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, ?)", nama, username, hashSandi(sandi), peran);
+    catatLog(saya, "Tambah pengguna", `${username}, peran ${peran}`);
   }
   redirect(`${kembali}?ok=1`);
 }

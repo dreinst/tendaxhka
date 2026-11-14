@@ -146,3 +146,27 @@ CREATE INDEX IF NOT EXISTS idx_baris_pesanan ON pesanan_baris (pesanan_id);
 CREATE INDEX IF NOT EXISTS idx_pembayaran_tanggal ON pembayaran (tanggal);
 CREATE INDEX IF NOT EXISTS idx_biaya_tanggal ON biaya (tanggal);
 CREATE INDEX IF NOT EXISTS idx_tugas_tanggal ON tugas (tanggal);
+
+-- Jejak audit: siapa mengubah apa. Waktu dalam WIB (YYYY-MM-DD HH:MM:SS). Nama pengguna disalin supaya
+-- catatan tetap terbaca walau akunnya nanti diubah. Pemicu di bawah menolak UPDATE dan DELETE, jadi
+-- catatan hanya bisa bertambah lewat aplikasi.
+CREATE TABLE IF NOT EXISTS log_aktivitas (
+  id INTEGER PRIMARY KEY,
+  waktu TEXT NOT NULL,
+  pengguna_id INTEGER,
+  pengguna TEXT NOT NULL,
+  aksi TEXT NOT NULL,
+  rincian TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_log_waktu ON log_aktivitas (waktu);
+
+CREATE TRIGGER IF NOT EXISTS log_aktivitas_tanpa_ubah BEFORE UPDATE ON log_aktivitas
+BEGIN
+  SELECT RAISE(ABORT, 'Jejak audit tidak bisa diubah.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS log_aktivitas_tanpa_hapus BEFORE DELETE ON log_aktivitas
+BEGIN
+  SELECT RAISE(ABORT, 'Jejak audit tidak bisa dihapus.');
+END;

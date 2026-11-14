@@ -16,6 +16,7 @@ const MENU: { href: string; teks: string; hak?: Hak }[] = [
   { href: "/sistem/aset", teks: "Aset", hak: "aset.lihat" },
   { href: "/sistem/keuangan", teks: "Keuangan", hak: "keuangan.lihat" },
   { href: "/sistem/bagi-hasil", teks: "Bagi hasil", hak: "keuangan.lihat" },
+  { href: "/sistem/log", teks: "Jejak audit", hak: "keuangan.lihat" },
   { href: "/sistem/pengaturan", teks: "Pengaturan", hak: "pengaturan" },
 ];
 

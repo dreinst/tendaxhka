@@ -85,3 +85,15 @@ test("hari terpadat menghitung booking dan perawatan sejak tanggal awal", async 
   assert.deepEqual(hariTerpadat(kursi, "2026-12-01"), { tanggal: "2026-12-04", jumlah: 6 });
   assert.equal(hariTerpadat(kursi, "2026-12-06"), null);
 });
+
+test("jejak audit tercatat dan tidak bisa diubah atau dihapus", async () => {
+  const { catatLog, daftarLog } = await import("../src/lib/data.ts");
+  catatLog({ id: 1, nama: "Penguji" }, "Catat pembayaran masuk", "TI-001, Rp 500.000");
+  const bulan = (await import("../src/lib/format.ts")).hariIni().slice(0, 7);
+  const [l] = daftarLog(bulan);
+  assert.equal(l.pengguna, "Penguji");
+  assert.equal(l.aksi, "Catat pembayaran masuk");
+  assert.match(l.waktu, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  assert.throws(() => jalankan("UPDATE log_aktivitas SET rincian = 'diubah' WHERE id = ?", l.id), /tidak bisa diubah/);
+  assert.throws(() => jalankan("DELETE FROM log_aktivitas WHERE id = ?", l.id), /tidak bisa dihapus/);
+});

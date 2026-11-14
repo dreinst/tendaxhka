@@ -41,6 +41,7 @@ npm run build
 | `/sistem/aset` | Data aset dan catatan perawatan |
 | `/sistem/keuangan` | Biaya operasional, uang masuk, piutang per bulan |
 | `/sistem/bagi-hasil` | Nett profit per bulan, tutup periode, pembayaran ke partner |
+| `/sistem/log` | Jejak audit: siapa mengubah uang, status pesanan, aset, pengaturan, dan pengguna |
 | `/sistem/pengaturan` | Identitas usaha, rumus bagi hasil, checklist bawaan, pengguna |
 | `/cetak/[id]` | Penawaran atau faktur siap cetak (simpan sebagai PDF dari dialog cetak browser) |
 
@@ -97,6 +98,7 @@ Satu berkas SQLite di `data/tenda.db` (atau `DB_PATH`), dibuka lewat `node:sqlit
 | `pembayaran`, `biaya` | Uang masuk dan biaya (langsung atau operasional) |
 | `tugas` | Jadwal lapangan, checklist disimpan sebagai JSON |
 | `periode` | Angka bagi hasil yang sudah ditutup |
+| `log_aktivitas` | Jejak audit. Pemicu SQLite menolak UPDATE dan DELETE, jadi `npm run seed -- --timpa` tidak mengosongkannya |
 
 Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`).
 
@@ -116,4 +118,5 @@ Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".ba
 - Isi identitas usaha, kontak, dan rekening di Pengaturan. Selama kosong, website tidak menampilkan kontak.
 - Website belum punya foto. Ilustrasi tenda dan ikon katalog adalah gambar SVG pengganti.
 - Aset dilacak per jumlah, belum per unit bernomor seri.
-- Belum ada: PDF buatan server (cetak memakai dialog browser), unggah foto bukti pasang, notifikasi WhatsApp atau email, pengembalian dana, dan jejak audit perubahan data.
+- Belum ada: PDF buatan server (cetak memakai dialog browser), unggah foto bukti pasang, notifikasi WhatsApp atau email, dan pengembalian dana.
+- Jejak audit hanya mencegah perubahan lewat aplikasi. Orang yang memegang berkas basis data di server tetap bisa mengubahnya, jadi salin cadangan secara berkala ke tempat yang dipegang kedua partner.

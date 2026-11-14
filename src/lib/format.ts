@@ -56,3 +56,8 @@ export const LABEL_PERAN: Record<string, string> = {
   kru: "Kru",
   partner: "Partner",
 };
+
+// Waktu sekarang di WIB, misalnya "2026-11-14 22:30:05". Urutannya sama dengan urutan teks.
+export function waktuKini(): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: ZONA, dateStyle: "short", timeStyle: "medium" }).format(new Date());
+}

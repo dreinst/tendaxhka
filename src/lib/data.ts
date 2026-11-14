@@ -1,4 +1,5 @@
 import { jalankan, satu, semua } from "./db.ts";
+import { waktuKini } from "./format.ts";
 import {
   batasBulan,
   hitungLaba,
@@ -329,4 +330,23 @@ export function utilisasiBulan(bulan: string): { baris: { aset: Aset; nilai: num
   const unit = aset.reduce((s, a) => s + a.jumlah, 0);
   const rata = unit ? baris.reduce((s, b) => s + b.nilai * b.aset.jumlah, 0) / unit : 0;
   return { baris, rata };
+}
+
+// Jejak audit
+
+export type Log = { id: number; waktu: string; pengguna: string; aksi: string; rincian: string };
+
+export function catatLog(oleh: { id: number; nama: string }, aksi: string, rincian = ""): void {
+  jalankan(
+    "INSERT INTO log_aktivitas (waktu, pengguna_id, pengguna, aksi, rincian) VALUES (?, ?, ?, ?, ?)",
+    waktuKini(),
+    oleh.id,
+    oleh.nama,
+    aksi,
+    rincian.slice(0, 1000),
+  );
+}
+
+export function daftarLog(bulan: string): Log[] {
+  return semua<Log>("SELECT id, waktu, pengguna, aksi, rincian FROM log_aktivitas WHERE waktu LIKE ? ORDER BY id DESC", `${bulan}-%`);
 }

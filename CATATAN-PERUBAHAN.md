@@ -64,3 +64,17 @@ Sekarang ada `hariTerpadat()` di `src/lib/data.ts` yang mencari hari dengan pema
 ### Booking yang dilepas meninggalkan sisa
 
 Kalau status booking dikembalikan ke penawaran atau dibatalkan, tugas pasang dan bongkar tetap muncul di jadwal kru dan kontak tetap di tahap Menang. Sekarang tugas yang belum selesai dihapus. Kontak yang tidak punya booking lain kembali ke tahap Penawaran, atau Kalah kalau pesanannya batal. Saat dibooking ulang, tugas pasang dan bongkar dibuat lagi per jenis.
+
+## 5. Jejak audit
+
+Masalah: kerja sama ini membagi nett profit 50:50, tapi tidak ada catatan siapa yang menambah, mengubah, atau menghapus pembayaran, biaya, atau angka bagi hasil. Kalau suatu saat ada selisih, kedua partner tidak punya bukti.
+
+Perubahan:
+
+- Tabel baru `log_aktivitas` di `db/skema.sql` (waktu WIB, pengguna, aksi, rincian). Dua pemicu SQLite menolak UPDATE dan DELETE, jadi catatan hanya bisa bertambah.
+- `catatLog()` dan `daftarLog()` di `src/lib/data.ts`, `waktuKini()` di `src/lib/format.ts`.
+- Yang dicatat: login berhasil, admin pertama, buat dan ubah pesanan (total lama dan baru), ubah status, terbitkan faktur, hapus pesanan, pembayaran masuk dan penghapusannya, biaya dan penghapusannya, tambah aset dan perubahan jumlah atau harga, tutup dan buka periode, pembayaran ke partner (nilai lama dan baru), perubahan pengaturan (rumus bagi hasil lengkap dengan nilai lamanya), serta tambah dan ubah pengguna.
+- Halaman baru `/sistem/log` per bulan. Bisa dibuka admin dan partner (hak `keuangan.lihat`), jadi kedua pihak bisa memeriksa sendiri.
+- Tes baru memastikan catatan tidak bisa diubah atau dihapus.
+
+Batasan: pemicu hanya mencegah perubahan lewat aplikasi. Siapa pun yang memegang berkas `tenda.db` di server tetap bisa mengubahnya. Sebaiknya cadangan basis data rutin disalin ke tempat yang bisa diakses kedua partner.
