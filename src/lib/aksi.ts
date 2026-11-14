@@ -6,7 +6,7 @@ import { ambilPesanan, barisPesanan, bulanTerkunci, kekurangan, kunciBulan, nomo
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni } from "./format.ts";
 import { bacaChecklist, tambahHari, tanggalSah, type ButirChecklist } from "./hitung.ts";
-import { cocokSandi, hashSandi, samaAman } from "./sandi.ts";
+import { cocokSandi, cocokSandiPalsu, hashSandi, samaAman } from "./sandi.ts";
 
 // Galat yang pesannya boleh ditampilkan ke pengguna. Galat lain dibiarkan naik ke halaman error.
 class Galat extends Error {}
@@ -74,7 +74,8 @@ export async function masuk(fd: FormData): Promise<void> {
   }
 
   const u = satu<{ id: number; sandi: string }>("SELECT id, sandi FROM pengguna WHERE username = ? AND aktif = 1", username);
-  if (!u || !cocokSandi(sandi, u.sandi)) gagal("/masuk", "Username atau kata sandi salah.");
+  const cocok = u ? cocokSandi(sandi, u.sandi) : cocokSandiPalsu(sandi);
+  if (!u || !cocok) gagal("/masuk", "Username atau kata sandi salah.");
   await bukaSesi(u.id);
   redirect("/sistem");
 }

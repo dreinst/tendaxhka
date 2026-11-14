@@ -28,3 +28,19 @@ Perubahan:
 Yang perlu dilakukan: di server, pasang `proxy_set_header X-Real-IP $remote_addr;` di Nginx (atau pakai `cf-connecting-ip` kalau lewat Cloudflare), lalu isi `HEADER_IP` dengan nama header itu.
 
 Konsekuensi: orang yang sengaja salah sandi 10 kali bisa membuat satu akun tidak bisa masuk selama 15 menit. Itu harga yang wajar dibanding tebakan sandi tanpa batas.
+
+## 3. Seed, waktu respons login, dan robots.txt
+
+Masalah:
+
+- `npm run seed` membuat enam akun dengan kata sandi `tenda12345` yang tertulis di repo. Kalau seed sempat dijalankan di server, siapa pun yang pernah melihat repo bisa masuk sebagai admin.
+- Login menjawab lebih cepat kalau username tidak ada, karena `scrypt` yang lambat hanya dijalankan untuk username yang ada. Dari selisih waktu itu, penyerang bisa tahu username mana yang terdaftar.
+- `robots.txt` mencantumkan `/sistem`, `/cetak`, dan `/masuk`. Berkas itu publik, jadi siapa pun bisa melihat daftar alamat internal.
+
+Perubahan:
+
+- Seed menolak berjalan kalau `NODE_ENV=production`. Kata sandi akun contoh dibuat acak setiap kali seed jalan dan ditampilkan di terminal. `SANDI_CONTOH` bisa diisi kalau ingin kata sandi tetap untuk lokal.
+- Username yang tidak ada tetap menjalankan `scrypt` terhadap hash palsu (`cocokSandiPalsu()` di `src/lib/sandi.ts`), jadi waktu jawabannya sama.
+- `disallow` dihapus dari `src/app/robots.ts`. Halaman internal tetap tidak diindeks karena `next.config.ts` sudah mengirim header `X-Robots-Tag: noindex`.
+
+Catatan soal alamat admin: alamat `/masuk` dan `/sistem` yang mudah ditebak bukan celah, karena setiap halaman dan aksi tetap memeriksa sesi lewat `wajib()`. Menyamarkan alamat hanya memperlambat penyerang sebentar.

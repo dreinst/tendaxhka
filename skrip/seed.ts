@@ -4,9 +4,17 @@ import { kunciBulan, nomorBerikut, PENGATURAN_BAWAAN } from "../src/lib/data.ts"
 import { jalankan, satu, transaksi } from "../src/lib/db.ts";
 import { hariIni } from "../src/lib/format.ts";
 import { geserBulan, tambahHari } from "../src/lib/hitung.ts";
+import { randomBytes } from "node:crypto";
 import { hashSandi } from "../src/lib/sandi.ts";
 
-const SANDI = "tenda12345";
+// Data contoh tidak boleh masuk ke server sungguhan: akunnya semua memakai satu kata sandi.
+if (process.env.NODE_ENV === "production") {
+  console.error("Seed ditolak karena NODE_ENV=production. Data contoh hanya untuk lokal.");
+  process.exit(1);
+}
+
+// Kata sandi dibuat acak setiap kali seed dijalankan, kecuali SANDI_CONTOH diisi (minimal 8 karakter).
+const SANDI = (process.env.SANDI_CONTOH ?? "").length >= 8 ? process.env.SANDI_CONTOH! : randomBytes(6).toString("hex");
 const TABEL = ["periode", "tugas", "biaya", "pembayaran", "pesanan_baris", "pesanan", "kontak", "perawatan", "aset", "pengaturan", "sesi", "pengguna"];
 
 if (satu("SELECT 1 FROM pengguna LIMIT 1")) {
