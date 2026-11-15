@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { alamatIp, bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
-import { ambilPesanan, barisPesanan, bulanTerkunci, catatLog, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, type Aset } from "./data.ts";
+import { ambilPesanan, barisPesanan, bulanTerkunci, catatLog, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, unitDirawat, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
 import { bacaChecklist, tambahHari, tanggalSah, type ButirChecklist } from "./hitung.ts";
@@ -528,6 +528,11 @@ export async function tambahPerawatan(asetId: number, fd: FormData): Promise<voi
   const mulai = teks(fd, "mulai", 10);
   const a = satu<Aset>("SELECT * FROM aset WHERE id = ?", asetId);
   if (!a || jumlah <= 0 || jumlah > a.jumlah || !tanggalSah(mulai)) gagal(kembali, "Isi jumlah unit (tidak lebih dari total) dan tanggal mulai.");
+  // Semua catatan perawatan yang masih berjalan dijumlahkan, supaya unit yang diperbaiki tidak melebihi unit yang dimiliki.
+  const dirawat = unitDirawat(asetId, mulai);
+  if (dirawat + jumlah > a.jumlah) {
+    gagal(kembali, `Sudah ada ${dirawat} unit yang masih diperbaiki. Dari ${a.jumlah} unit, paling banyak ${Math.max(0, a.jumlah - dirawat)} unit lagi yang bisa dicatat.`);
+  }
   jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, ?, ?, ?)", asetId, jumlah, mulai, teks(fd, "catatan", 300));
   // Unit yang rusak tetap dicatat karena memang tidak bisa dipakai, tapi gudang dan sales perlu tahu kalau
   // booking yang sudah ada jadi kekurangan.

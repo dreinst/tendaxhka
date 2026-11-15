@@ -139,3 +139,13 @@ Perubahan:
 - Tautan "Masuk sistem" di footer website diganti nomor telepon. Pelanggan tidak perlu tautan itu, dan tim cukup menyimpan alamat `/masuk` di bookmark. Ini hanya merapikan tampilan. Keamanannya tetap bergantung pada `wajib()`.
 
 Catatan: chat WhatsApp tidak otomatis masuk CRM. Sales perlu menambah kontaknya manual dengan sumber "whatsapp" supaya laporan sumber lead tetap lengkap.
+
+## 8. Unit dalam perawatan tidak bisa melebihi jumlah aset
+
+Masalah: saat mencatat perawatan, sistem hanya memeriksa satu catatan itu saja. Tenda yang jumlahnya 12 bisa punya 14 unit "masih diperbaiki" kalau dicatat dua kali (12 lalu 2), dan angka sisa di kalender jadi minus. Ini ditemukan saat menguji skenario peringatan stok di browser.
+
+Perubahan:
+
+- `unitDirawat()` di `src/lib/data.ts` menjumlahkan semua perawatan yang masih berjalan untuk satu aset.
+- `tambahPerawatan` menolak catatan baru kalau totalnya melebihi jumlah aset, dan pesannya menyebut berapa unit lagi yang masih bisa dicatat.
+- Ada tes baru untuk `unitDirawat()`.

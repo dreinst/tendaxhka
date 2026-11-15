@@ -201,6 +201,16 @@ export function hariTerpadat(asetId: number, awal: string): { tanggal: string; j
   return { tanggal: hari[i], jumlah: per[i] };
 }
 
+// Jumlah unit satu aset yang masih diperbaiki pada atau sesudah tanggal tertentu. Perawatan tanpa tanggal
+// selesai dihitung terus sampai ditandai selesai.
+export function unitDirawat(asetId: number, sejak: string): number {
+  return satu<{ n: number }>(
+    "SELECT COALESCE(SUM(jumlah), 0) AS n FROM perawatan WHERE aset_id = ? AND (selesai IS NULL OR selesai >= ?)",
+    asetId,
+    sejak,
+  )!.n;
+}
+
 // Daftar aset yang tidak cukup untuk pesanan ini di rentang tanggalnya. Kosong berarti aman dibooking.
 export function kekurangan(pesananId: number): string[] {
   const p = satu<{ mulai: string; selesai: string }>("SELECT mulai, selesai FROM pesanan WHERE id = ?", pesananId);

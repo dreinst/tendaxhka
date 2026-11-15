@@ -97,3 +97,14 @@ test("jejak audit tercatat dan tidak bisa diubah atau dihapus", async () => {
   assert.throws(() => jalankan("UPDATE log_aktivitas SET rincian = 'diubah' WHERE id = ?", l.id), /tidak bisa diubah/);
   assert.throws(() => jalankan("DELETE FROM log_aktivitas WHERE id = ?", l.id), /tidak bisa dihapus/);
 });
+
+test("unit dirawat menjumlahkan perawatan yang masih berjalan", async () => {
+  const { unitDirawat } = await import("../src/lib/data.ts");
+  const lampu = jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('L1', 'Lampu', 'Lampu', 10, 1000)");
+  assert.equal(unitDirawat(lampu, "2026-12-01"), 0);
+  jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai) VALUES (?, 4, '2026-11-20')", lampu);
+  jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, selesai) VALUES (?, 3, '2026-11-10', '2026-12-05')", lampu);
+  jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, selesai) VALUES (?, 2, '2026-11-01', '2026-11-15')", lampu);
+  assert.equal(unitDirawat(lampu, "2026-12-01"), 7);
+  assert.equal(unitDirawat(lampu, "2026-12-06"), 4);
+});
