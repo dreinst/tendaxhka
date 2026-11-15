@@ -11,6 +11,8 @@ Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Se
 | 5 | `39961c7` | Jejak audit |
 | 6 | `a96abdd` | Sesi habis setelah 12 jam tidak dipakai |
 | 7 | `2c87181` | Tombol WhatsApp di website |
+| 8 | `e3f37bd` | Unit dalam perawatan tidak bisa melebihi jumlah aset |
+| 9 | `e8089a4` | Jejak audit mencatat tanggal lama pesanan |
 
 ## Yang perlu dilakukan di server sebelum deploy
 
@@ -23,7 +25,7 @@ Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Se
 ## Pemeriksaan
 
 - `npm run lint` dan `npm run typecheck` lulus.
-- `npm test`: 18 tes lulus, termasuk 3 tes baru (`hariTerpadat`, jejak audit tidak bisa diubah, `nomorWa`).
+- `npm test`: 19 tes lulus, termasuk 4 tes baru (`hariTerpadat`, jejak audit tidak bisa diubah, `nomorWa`, `unitDirawat`).
 - `npm run build` lulus. Build dijalankan di salinan yang font Google-nya diganti dummy, karena mesin uji tidak bisa mengakses fonts.googleapis.com. Kodenya sendiri tidak diubah untuk itu.
 - Uji di browser dengan `next dev`:
   - 12 percobaan login salah dengan `x-forwarded-for` berbeda tetap terkunci di percobaan ke-6.
@@ -31,6 +33,11 @@ Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Se
   - Halaman `/sistem/log` menampilkan catatan login.
   - Tombol WhatsApp tampil di HP dan desktop.
 - Migrasi kolom `sesi.batas` diuji dengan basis data yang dibuat dari skema `b3faf4f`.
+- Skenario perbaikan bug diuji di browser dengan data contoh, lalu hasilnya dicocokkan dengan isi basis data:
+  - Tanggal pesanan booking digeser: tugas pasang dan bongkar ikut pindah, dan tugas yang tanggalnya sudah diubah manual tidak ikut.
+  - Pembayaran ke partner di atas bagiannya ditolak, dan yang pas diterima.
+  - Booking dikembalikan ke penawaran atau dibatalkan: tugas terhapus dan tahap kontak berubah. Kontak yang punya pesanan lain tetap Menang.
+  - Perawatan yang membuat booking kekurangan menampilkan peringatan. Perawatan yang totalnya melebihi jumlah aset ditolak.
 
 ## Belum dikerjakan, perlu keputusan bersama
 
