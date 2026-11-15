@@ -169,7 +169,8 @@ export async function ubahTahap(id: number, tahap: string): Promise<void> {
 export async function simpanPesanan(fd: FormData): Promise<void> {
   const u = await wajib("pesanan.tulis");
   let id = bulat(fd.get("id"));
-  const totalLama = id ? ambilPesanan(id)?.total : undefined;
+  const sebelum = id ? ambilPesanan(id) : undefined;
+  const totalLama = sebelum?.total;
   const kontakId = bulat(fd.get("kontak_id"));
   const kembali = id ? `/sistem/pesanan/${id}` : `/sistem/pesanan/baru?kontak=${kontakId}`;
   const acara = teks(fd, "acara", 160);
@@ -256,7 +257,13 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
     }
     const p = ambilPesanan(id)!;
     if (totalLama === undefined) catatLog(u, "Buat penawaran", `${p.nomor}, ${p.acara}, total ${rupiah(p.total)}`);
-    else catatLog(u, "Ubah pesanan", `${p.nomor}, total dari ${rupiah(totalLama)} menjadi ${rupiah(p.total)}, tanggal ${mulai} sampai ${selesai}`);
+    else {
+      const geser = sebelum && (sebelum.mulai !== mulai || sebelum.selesai !== selesai);
+      const tanggal = geser
+        ? `tanggal dari ${sebelum.mulai} sampai ${sebelum.selesai} menjadi ${mulai} sampai ${selesai}`
+        : `tanggal tetap ${mulai} sampai ${selesai}`;
+      catatLog(u, "Ubah pesanan", `${p.nomor}, total dari ${rupiah(totalLama)} menjadi ${rupiah(p.total)}, ${tanggal}`);
+    }
   });
   if (galat) gagal(kembali, galat);
   redirect(`/sistem/pesanan/${id}`);

@@ -149,3 +149,9 @@ Perubahan:
 - `unitDirawat()` di `src/lib/data.ts` menjumlahkan semua perawatan yang masih berjalan untuk satu aset.
 - `tambahPerawatan` menolak catatan baru kalau totalnya melebihi jumlah aset, dan pesannya menyebut berapa unit lagi yang masih bisa dicatat.
 - Ada tes baru untuk `unitDirawat()`.
+
+## 9. Jejak audit mencatat tanggal lama pesanan
+
+Masalah: catatan "Ubah pesanan" hanya memuat tanggal baru. Kalau tanggal acara digeser, tidak terlihat dari tanggal berapa.
+
+Perubahan: `simpanPesanan` sekarang menulis "tanggal dari A sampai B menjadi C sampai D" kalau tanggalnya berubah, dan "tanggal tetap" kalau tidak. Total lama dan baru tetap dicatat seperti sebelumnya.
