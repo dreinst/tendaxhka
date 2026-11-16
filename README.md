@@ -115,6 +115,20 @@ Foto dikecilkan di browser ke sisi terpanjang 1000 piksel dan disimpan sebagai J
 - `src/app/page.tsx`: website. `src/app/sistem/**`: halaman sistem.
 - `tests/`: uji hitungan dan uji kueri dengan basis data di memori.
 
+## Mode demo (Vercel)
+
+Untuk pratinjau di hosting tanpa disk tetap seperti Vercel, isi dua variabel lingkungan:
+
+```
+MODE_DEMO=1
+SANDI_DEMO=kata-sandi-minimal-8-karakter
+HEADER_IP=x-real-ip
+```
+
+Dengan `MODE_DEMO=1`, basis data dan foto ditaruh di `/tmp/tenda-demo`, lalu diisi data contoh (`src/lib/contoh.ts`) saat masih kosong. Semua akun contoh (`admin`, `sales`, `gudang`, `kru`, `partner-tenda`, `partner-hka`) memakai `SANDI_DEMO`. Setiap halaman menampilkan pita "Versi demo" dan seluruh situs ditandai `noindex`.
+
+Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Kalau dua server aktif bersamaan, keduanya punya data sendiri-sendiri, jadi sesekali sesi login bisa hilang. Mode ini hanya untuk menunjukkan tampilan, tidak untuk data asli.
+
 ## Yang perlu diketahui sebelum dipakai sungguhan
 
 - SQLite butuh disk yang menetap. Sistem ini cocok di VPS atau container dengan volume, dan tidak cocok di hosting serverless yang disknya hilang tiap deploy. Kalau nanti pindah ke PostgreSQL, yang diganti adalah `src/lib/db.ts` dan beberapa sintaks SQL.

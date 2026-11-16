@@ -24,6 +24,8 @@ const pribadi = [
 
 const config: NextConfig = {
   poweredByHeader: false,
+  // skema.sql dibaca saat aplikasi berjalan, jadi harus ikut terbawa ke server (misalnya di Vercel).
+  outputFileTracingIncludes: { "/*": ["./db/skema.sql"], "/**": ["./db/skema.sql"] },
   async headers() {
     return [
       {
@@ -37,6 +39,7 @@ const config: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
         ],
       },
+      ...(process.env.MODE_DEMO === "1" ? [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }] : []),
       { source: "/sistem/:path*", headers: pribadi },
       { source: "/cetak/:path*", headers: pribadi },
       { source: "/masuk", headers: pribadi },

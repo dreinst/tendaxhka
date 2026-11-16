@@ -197,3 +197,19 @@ Perubahan:
 - Tombol "Tanya lewat WhatsApp" membawa pesan yang sudah berisi nama barang, jumlah, dan lama sewa. Kalau nomor WhatsApp belum diisi di Pengaturan, tombolnya mengarah ke formulir penawaran.
 - Hanya kolom untuk pengunjung yang dikirim ke browser. Kode, harga pokok, dan data internal lain tidak ikut.
 - Landing page dan dashboard tetap terpisah: pengunjung hanya melihat `/`, sedangkan foto dikelola di `/sistem/aset` setelah login.
+
+## 12. Mode demo untuk pratinjau di Vercel (branch `demo-vercel`)
+
+Masalah: Vercel tidak punya disk tetap, sedangkan sistem ini menyimpan basis data SQLite dan foto sebagai berkas. Tanpa penyesuaian, aplikasi gagal menulis atau datanya hilang tanpa tanda.
+
+Perubahan:
+
+- `MODE_DEMO=1` menaruh basis data dan foto di `/tmp/tenda-demo`, satu-satunya folder yang boleh ditulis di Vercel. Saat basis data masih kosong, sistem mengisinya dengan data contoh dan semua akun contoh memakai `SANDI_DEMO`.
+- Isi `skrip/seed.ts` dipindah ke `src/lib/contoh.ts` supaya bisa dipakai oleh `npm run seed` dan oleh mode demo. `npm run seed` tetap menolak berjalan kalau `NODE_ENV=production`.
+- Setiap halaman demo menampilkan pita "Versi demo", dan seluruh situs ditandai `noindex` lewat metadata, `robots.txt`, dan header `X-Robots-Tag`.
+- `next.config.ts` menyertakan `db/skema.sql` ke server lewat `outputFileTracingIncludes`, karena berkas itu dibaca saat aplikasi berjalan.
+- Tanpa `MODE_DEMO`, perilakunya sama persis seperti sebelumnya.
+
+Batasan: data demo hilang setiap kali server dimulai ulang atau setelah deploy baru. Kalau Vercel menjalankan dua server bersamaan, masing-masing punya data sendiri. Ini hanya untuk pratinjau.
+
+Diuji dengan build produksi dan `next start` memakai `MODE_DEMO=1`: basis data terbentuk saat permintaan pertama (bukan saat build), katalog berisi 10 barang contoh, login admin, unggah foto ke `/tmp`, foto tampil di katalog, dan pita demo serta `noindex` muncul.

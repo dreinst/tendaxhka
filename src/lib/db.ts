@@ -1,14 +1,25 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { isiDataContoh } from "./contoh.ts";
 
 // Satu koneksi per proses, disimpan di globalThis supaya tidak dibuka ulang saat dev memuat ulang modul.
 type Wadah = typeof globalThis & { __dbTenda?: DatabaseSync };
 
+// Mode demo untuk hosting tanpa disk tetap seperti Vercel: basis data dan foto ditaruh di /tmp, satu-satunya
+// folder yang boleh ditulis di sana, lalu diisi data contoh saat masih kosong. Isinya hilang setiap kali
+// server dimulai ulang, jadi mode ini hanya untuk pratinjau, tidak untuk data asli.
+export const MODE_DEMO = process.env.MODE_DEMO === "1";
+
+export function jalurDb(): string {
+  if (process.env.DB_PATH) return process.env.DB_PATH;
+  return MODE_DEMO ? "/tmp/tenda-demo/tenda.db" : join(process.cwd(), "data", "tenda.db");
+}
+
 export function db(): DatabaseSync {
   const g = globalThis as Wadah;
   if (!g.__dbTenda) {
-    const jalur = process.env.DB_PATH ?? join(process.cwd(), "data", "tenda.db");
+    const jalur = jalurDb();
     if (jalur !== ":memory:") mkdirSync(dirname(jalur), { recursive: true });
     const d = new DatabaseSync(jalur);
     d.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
@@ -20,6 +31,11 @@ export function db(): DatabaseSync {
     if (!punya("aset", "kapasitas")) d.exec("ALTER TABLE aset ADD COLUMN kapasitas TEXT NOT NULL DEFAULT ''");
     if (!punya("aset", "cocok")) d.exec("ALTER TABLE aset ADD COLUMN cocok TEXT NOT NULL DEFAULT ''");
     g.__dbTenda = d;
+    if (MODE_DEMO && !d.prepare("SELECT 1 FROM pengguna LIMIT 1").get()) {
+      const sandi = process.env.SANDI_DEMO ?? "";
+      if (sandi.length < 8) throw new Error("MODE_DEMO=1 butuh SANDI_DEMO minimal 8 karakter untuk akun contoh.");
+      isiDataContoh(sandi);
+    }
   }
   return g.__dbTenda;
 }
