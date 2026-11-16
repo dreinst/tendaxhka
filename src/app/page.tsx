@@ -250,7 +250,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-tinta-lembut">
           <p>{s.nama_usaha}</p>
           {s.telepon && <p>{s.telepon}</p>}
-          <Link href="/kredit-foto" className="underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
+          <Link href="/kredit-foto" className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
         </div>
       </footer>
 
