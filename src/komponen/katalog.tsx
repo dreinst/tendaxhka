@@ -100,6 +100,29 @@ export function Katalog({
   const tampil = ringkas ? urut.slice(0, JUMLAH_RINGKAS) : urut;
   // Barang yang tidak muat di ringkasan beranda disebut namanya di kartu ajakan.
   const sisa = ringkas ? urut.slice(JUMLAH_RINGKAS) : [];
+  // Di HP kartu tersusun dua kolom. Kalau jumlahnya ganjil, kartu terakhir sebaris dengan kartu ajakan yang lebih tinggi
+  // dan menyisakan ruang kosong. Jadi di HP kartu itu disembunyikan dan barangnya disebut di kartu ajakan.
+  const ganjil = ringkas && tampil.length >= 3 && tampil.length % 2 === 1 ? tampil[tampil.length - 1] : null;
+  // Baris di kartu ajakan ikut meregang (flex-1) supaya daftar mengisi tinggi kartu saat kartu di sebelahnya lebih tinggi.
+  // Baris kedua (kategori dan satuan) hanya tampil mulai layar sm, karena di HP kartunya selebar layar dan cukup satu baris.
+  const barisSisa = (b: Barang, kelas = "") => (
+    <li key={b.id} className={`flex flex-1 flex-col justify-center py-2.5 ${kelas}`}>
+      <div className="flex items-baseline justify-between gap-x-3">
+        <span className="min-w-0">
+          <span className="block font-medium">{b.nama}</span>
+          <span className="block text-xs text-white/75 max-sm:hidden">{b.kategori}</span>
+        </span>
+        <span className="shrink-0 text-right">
+          <span className="block font-semibold tabular-nums">{b.harga > 0 ? rupiah(b.harga) : "Lewat penawaran"}</span>
+          {b.harga > 0 && (
+            <span className="block text-xs text-white/75 max-sm:hidden">
+              per {b.satuan} per hari
+            </span>
+          )}
+        </span>
+      </div>
+    </li>
+  );
 
   function buka(b: Barang) {
     setPilih(b);
@@ -123,7 +146,7 @@ export function Katalog({
           {tampil.map((b, i) => (
             <li
               key={b.id}
-              className={`group relative flex shrink-0 grow-0 flex-col overflow-hidden rounded-xl border border-garis bg-white shadow-[0_1px_2px_rgb(14_49_56/0.05)] transition-shadow duration-200 hover:border-garis-kuat hover:shadow-[0_10px_24px_-14px_rgb(14_49_56/0.35)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-terpal ${LEBAR_KARTU}`}
+              className={`group relative flex shrink-0 grow-0 flex-col overflow-hidden rounded-xl border border-garis bg-white shadow-[0_1px_2px_rgb(14_49_56/0.05)] transition-shadow duration-200 hover:border-garis-kuat hover:shadow-[0_10px_24px_-14px_rgb(14_49_56/0.35)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-terpal ${LEBAR_KARTU} ${b === ganjil ? "max-sm:hidden" : ""}`}
             >
               <div className="relative grid aspect-[4/3] place-items-center overflow-hidden bg-kertas">
                 {b.foto.length > 0 ? (
@@ -158,14 +181,10 @@ export function Katalog({
           {ringkas ? (
             <li className={`flex min-w-0 grow flex-col gap-4 rounded-xl bg-tinta p-4 text-white sm:p-5 ${LEBAR_KARTU}`}>
               <p className="font-judul text-lg font-bold leading-tight sm:text-[22px]">{sisa.length > 0 ? "Juga ada di katalog" : `Ada ${barang.length} produk di katalog`}</p>
-              {sisa.length > 0 && (
-                <ul className="divide-y divide-white/15 border-y border-white/15 text-sm">
-                  {sisa.slice(0, 3).map((b) => (
-                    <li key={b.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2.5">
-                      <span className="font-medium">{b.nama}</span>
-                      <span className="tabular-nums text-white/75">{b.harga > 0 ? rupiah(b.harga) : "Lewat penawaran"}</span>
-                    </li>
-                  ))}
+              {(sisa.length > 0 || ganjil) && (
+                <ul className={`flex flex-1 flex-col divide-y divide-white/15 border-y border-white/15 text-sm ${sisa.length === 0 ? "sm:hidden" : ""}`}>
+                  {ganjil && barisSisa(ganjil, "sm:hidden")}
+                  {sisa.slice(0, 3).map((b) => barisSisa(b))}
                 </ul>
               )}
               {sisa.length > 3 && <p className="text-sm text-white/75">dan {sisa.length - 3} produk lain</p>}
