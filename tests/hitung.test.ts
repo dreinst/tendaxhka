@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bacaChecklist, batasBulan, boleh, hitungLaba, nomorWa, rentangHari, sisaTersedia, tanggalSah, totalPesanan, utilisasi, type Pakai } from "../src/lib/hitung.ts";
+import { bacaChecklist, batasBulan, boleh, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, utilisasi, type Pakai } from "../src/lib/hitung.ts";
 
 test("total pesanan mengalikan jumlah, hari, dan harga lalu memotong diskon", () => {
   const baris = [{ jumlah: 4, hari: 2, harga: 900_000 }, { jumlah: 1, hari: 1, harga: 1_500_000 }];
@@ -74,4 +74,19 @@ test("nomor WhatsApp dinormalkan ke format 62", () => {
   assert.equal(nomorWa("812 3456 7890"), "6281234567890");
   assert.equal(nomorWa("(0341) 123456"), null);
   assert.equal(nomorWa(""), null);
+});
+
+test("nama berkas foto hanya menerima bentuk buatan server", () => {
+  assert.equal(namaFotoSah("0123456789abcdef0123456789abcdef.jpg"), true);
+  assert.equal(namaFotoSah("../tenda.db"), false);
+  assert.equal(namaFotoSah("0123456789abcdef0123456789abcdef.png"), false);
+  assert.equal(namaFotoSah("0123456789ABCDEF0123456789abcdef.jpg"), false);
+  assert.equal(namaFotoSah("0123456789abcdef0123456789abcdef.jpg/../x"), false);
+});
+
+test("pemeriksaan JPEG melihat penanda awal dan akhir", () => {
+  assert.equal(tampakJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9])), true);
+  assert.equal(tampakJpeg(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 0xff, 0xd9])), false);
+  assert.equal(tampakJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])), false);
+  assert.equal(tampakJpeg(new Uint8Array([])), false);
 });

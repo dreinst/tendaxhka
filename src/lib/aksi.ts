@@ -1,11 +1,13 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { alamatIp, bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
 import { ambilPesanan, barisPesanan, bulanTerkunci, catatLog, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, unitDirawat, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
-import { bacaChecklist, tambahHari, tanggalSah, type ButirChecklist } from "./hitung.ts";
+import { hapusBerkasFoto, simpanBerkasFoto } from "./foto.ts";
+import { bacaChecklist, MAKS_FOTO_PER_ASET, MAKS_UKURAN_FOTO, tambahHari, tampakJpeg, tanggalSah, type ButirChecklist } from "./hitung.ts";
 import { cocokSandi, cocokSandiPalsu, hashSandi, samaAman } from "./sandi.ts";
 
 // Galat yang pesannya boleh ditampilkan ke pengguna. Galat lain dibiarkan naik ke halaman error.
@@ -504,6 +506,8 @@ export async function simpanAset(fd: FormData): Promise<void> {
     teks(fd, "deskripsi", 300),
     fd.get("tampil_web") ? 1 : 0,
     fd.get("aktif") ? 1 : 0,
+    teks(fd, "kapasitas", 60),
+    teks(fd, "cocok", 80),
   ];
   if (id) {
     const lama = satu<Aset>("SELECT * FROM aset WHERE id = ?", id);
@@ -511,7 +515,7 @@ export async function simpanAset(fd: FormData): Promise<void> {
       catatLog(u, "Ubah aset", `${kode} ${nama}, jumlah dari ${lama.jumlah} menjadi ${isi[5]}, harga dari ${rupiah(lama.harga)} menjadi ${rupiah(Number(isi[6]))}`);
     }
     jalankan(
-      "UPDATE aset SET kode = ?, nama = ?, kategori = ?, ukuran = ?, satuan = ?, jumlah = ?, harga = ?, deskripsi = ?, tampil_web = ?, aktif = ? WHERE id = ?",
+      "UPDATE aset SET kode = ?, nama = ?, kategori = ?, ukuran = ?, satuan = ?, jumlah = ?, harga = ?, deskripsi = ?, tampil_web = ?, aktif = ?, kapasitas = ?, cocok = ? WHERE id = ?",
       ...isi,
       id,
     );
@@ -519,13 +523,52 @@ export async function simpanAset(fd: FormData): Promise<void> {
     const peringatan = peringatanStok(id, Number(isi[5]), hariIni());
     if (peringatan) gagal(kembali, `Aset disimpan. ${peringatan}`);
   } else {
-    jalankan(
-      "INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi, tampil_web, aktif) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    const baru = jalankan(
+      "INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi, tampil_web, aktif, kapasitas, cocok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ...isi,
     );
     catatLog(u, "Tambah aset", `${kode} ${nama}, jumlah ${isi[5]}, harga ${rupiah(Number(isi[6]))}`);
+    // Aset baru langsung dibuka supaya fotonya bisa ditambahkan.
+    redirect(`/sistem/aset/${baru}?ok=${encodeURIComponent("Aset tersimpan. Tambahkan fotonya di bagian Foto.")}`);
   }
   redirect("/sistem/aset");
+}
+
+// Foto aset. Berkas dikecilkan di browser lalu dikirim satu per satu, jadi ukurannya jauh di bawah batas
+// 1 MB untuk aksi server. Isi yang bukan JPEG ditolak.
+export async function tambahFoto(asetId: number, fd: FormData): Promise<{ galat?: string }> {
+  await wajib("aset.tulis");
+  const berkas = fd.get("foto");
+  if (!(berkas instanceof File)) return { galat: "Tidak ada foto yang dikirim." };
+  if (berkas.size > MAKS_UKURAN_FOTO) return { galat: "Foto terlalu besar." };
+  if (!satu("SELECT 1 FROM aset WHERE id = ?", asetId)) return { galat: "Aset tidak ditemukan." };
+  const isi = new Uint8Array(await berkas.arrayBuffer());
+  if (!tampakJpeg(isi)) return { galat: "Berkas itu bukan foto JPEG." };
+  const sudah = satu<{ n: number; akhir: number | null }>("SELECT COUNT(*) AS n, MAX(urutan) AS akhir FROM aset_foto WHERE aset_id = ?", asetId)!;
+  if (sudah.n >= MAKS_FOTO_PER_ASET) return { galat: `Satu aset paling banyak ${MAKS_FOTO_PER_ASET} foto.` };
+  const nama = simpanBerkasFoto(isi);
+  jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, ?, ?)", asetId, nama, (sudah.akhir ?? 0) + 1);
+  refresh();
+  return {};
+}
+
+export async function hapusFoto(id: number): Promise<void> {
+  await wajib("aset.tulis");
+  const f = satu<{ aset_id: number; berkas: string }>("SELECT aset_id, berkas FROM aset_foto WHERE id = ?", id);
+  if (!f) redirect("/sistem/aset");
+  jalankan("DELETE FROM aset_foto WHERE id = ?", id);
+  hapusBerkasFoto(f.berkas);
+  redirect(`/sistem/aset/${f.aset_id}#foto`);
+}
+
+// Foto dengan urutan terkecil menjadi sampul di katalog.
+export async function jadikanSampul(id: number): Promise<void> {
+  await wajib("aset.tulis");
+  const f = satu<{ aset_id: number }>("SELECT aset_id FROM aset_foto WHERE id = ?", id);
+  if (!f) redirect("/sistem/aset");
+  const awal = satu<{ n: number }>("SELECT MIN(urutan) AS n FROM aset_foto WHERE aset_id = ?", f.aset_id)!.n;
+  jalankan("UPDATE aset_foto SET urutan = ? WHERE id = ?", awal - 1, id);
+  redirect(`/sistem/aset/${f.aset_id}#foto`);
 }
 
 export async function tambahPerawatan(asetId: number, fd: FormData): Promise<void> {

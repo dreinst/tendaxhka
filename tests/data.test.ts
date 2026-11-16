@@ -108,3 +108,35 @@ test("unit dirawat menjumlahkan perawatan yang masih berjalan", async () => {
   assert.equal(unitDirawat(lampu, "2026-12-01"), 7);
   assert.equal(unitDirawat(lampu, "2026-12-06"), 4);
 });
+
+test("foto aset berurut dengan sampul lebih dulu dan ikut terhapus bersama asetnya", async () => {
+  const { fotoAset, fotoPerAset } = await import("../src/lib/data.ts");
+  const a = jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('F1', 'Tenda Foto', 'Tenda', 1, 1000)");
+  jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'a.jpg', 1)", a);
+  jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'b.jpg', 2)", a);
+  const sampul = jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'c.jpg', 0)", a);
+  assert.deepEqual(fotoAset(a).map((f) => f.berkas), ["c.jpg", "a.jpg", "b.jpg"]);
+  assert.equal(fotoAset(a)[0].id, sampul);
+  assert.deepEqual(fotoPerAset().get(a), ["c.jpg", "a.jpg", "b.jpg"]);
+  jalankan("DELETE FROM aset WHERE id = ?", a);
+  assert.deepEqual(fotoAset(a), []);
+});
+
+test("berkas foto disimpan dengan nama acak dan nama yang tidak sah tidak bisa dibaca", async () => {
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "foto-uji-"));
+  process.env.FOTO_DIR = dir;
+  const { bacaBerkasFoto, hapusBerkasFoto, simpanBerkasFoto } = await import("../src/lib/foto.ts");
+  const isi = new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 0xff, 0xd9]);
+  const nama = simpanBerkasFoto(isi);
+  assert.match(nama, /^[a-f0-9]{32}\.jpg$/);
+  assert.deepEqual(new Uint8Array(bacaBerkasFoto(nama)!), isi);
+  assert.equal(bacaBerkasFoto("../../etc/passwd"), null);
+  assert.equal(bacaBerkasFoto("0123456789abcdef0123456789abcdef.jpg"), null);
+  hapusBerkasFoto(nama);
+  assert.equal(bacaBerkasFoto(nama), null);
+  delete process.env.FOTO_DIR;
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -15,7 +15,7 @@ if (process.env.NODE_ENV === "production") {
 
 // Kata sandi dibuat acak setiap kali seed dijalankan, kecuali SANDI_CONTOH diisi (minimal 8 karakter).
 const SANDI = (process.env.SANDI_CONTOH ?? "").length >= 8 ? process.env.SANDI_CONTOH! : randomBytes(6).toString("hex");
-const TABEL = ["periode", "tugas", "biaya", "pembayaran", "pesanan_baris", "pesanan", "kontak", "perawatan", "aset", "pengaturan", "sesi", "pengguna"];
+const TABEL = ["periode", "tugas", "biaya", "pembayaran", "pesanan_baris", "pesanan", "kontak", "perawatan", "aset_foto", "aset", "pengaturan", "sesi", "pengguna"];
 
 if (satu("SELECT 1 FROM pengguna LIMIT 1")) {
   if (!process.argv.includes("--timpa")) {

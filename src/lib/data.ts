@@ -27,7 +27,25 @@ export type Aset = {
   deskripsi: string;
   tampil_web: number;
   aktif: number;
+  kapasitas: string;
+  cocok: string;
 };
+
+export type Foto = { id: number; aset_id: number; berkas: string; urutan: number };
+
+// Foto satu aset, sampul lebih dulu.
+export function fotoAset(asetId: number): Foto[] {
+  return semua<Foto>("SELECT * FROM aset_foto WHERE aset_id = ? ORDER BY urutan, id", asetId);
+}
+
+// Nama berkas foto semua aset, dikelompokkan per aset, untuk katalog dan daftar aset.
+export function fotoPerAset(): Map<number, string[]> {
+  const hasil = new Map<number, string[]>();
+  for (const f of semua<Foto>("SELECT * FROM aset_foto ORDER BY urutan, id")) {
+    hasil.set(f.aset_id, [...(hasil.get(f.aset_id) ?? []), f.berkas]);
+  }
+  return hasil;
+}
 
 export type Kontak = {
   id: number;

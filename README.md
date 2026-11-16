@@ -31,14 +31,15 @@ npm run build
 
 | Alamat | Isi |
 |---|---|
-| `/` | Website: katalog sewa dari data aset, cara sewa, formulir permintaan penawaran |
+| `/` | Website: katalog sewa dengan foto, saring kategori, rincian, dan perkiraan biaya; cara sewa; formulir permintaan penawaran |
+| `/foto/[nama]` | Foto katalog untuk website. Publik, hanya nama berkas buatan server yang dilayani |
 | `/masuk` | Masuk ke sistem |
 | `/sistem` | Dasbor: nett profit bulan ini, utilisasi aset, piutang, pipeline, jadwal |
 | `/sistem/kontak` | CRM: papan lead per tahap, tindak lanjut |
 | `/sistem/pesanan` | Penawaran, booking, pelaksanaan, faktur, pembayaran, biaya langsung |
 | `/sistem/kalender` | Sisa unit per aset per hari |
 | `/sistem/jadwal` | Tugas pasang dan bongkar, kru, checklist |
-| `/sistem/aset` | Data aset dan catatan perawatan |
+| `/sistem/aset` | Data aset, foto untuk katalog website, dan catatan perawatan |
 | `/sistem/keuangan` | Biaya operasional, uang masuk, piutang per bulan |
 | `/sistem/bagi-hasil` | Nett profit per bulan, tutup periode, pembayaran ke partner |
 | `/sistem/log` | Jejak audit: siapa mengubah uang, status pesanan, aset, pengaturan, dan pengguna |
@@ -93,6 +94,7 @@ Satu berkas SQLite di `data/tenda.db` (atau `DB_PATH`), dibuka lewat `node:sqlit
 | `pengguna`, `sesi` | Akun dan sesi masuk |
 | `pengaturan` | Pasangan kunci dan nilai |
 | `aset`, `perawatan` | Aset per jumlah dan unit yang sedang diperbaiki |
+| `aset_foto` | Nama berkas foto tiap aset. Urutan terkecil menjadi sampul di katalog |
 | `kontak` | Lead dan pelanggan dalam satu tabel, dibedakan tahapnya |
 | `pesanan`, `pesanan_baris` | Satu pesanan dari penawaran sampai selesai |
 | `pembayaran`, `biaya` | Uang masuk dan biaya (langsung atau operasional) |
@@ -100,7 +102,9 @@ Satu berkas SQLite di `data/tenda.db` (atau `DB_PATH`), dibuka lewat `node:sqlit
 | `periode` | Angka bagi hasil yang sudah ditutup |
 | `log_aktivitas` | Jejak audit. Pemicu SQLite menolak UPDATE dan DELETE, jadi `npm run seed -- --timpa` tidak mengosongkannya |
 
-Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`).
+Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`) dan folder `data/foto` (atau `FOTO_DIR`).
+
+Foto dikecilkan di browser ke sisi terpanjang 1000 piksel dan disimpan sebagai JPEG, jadi satu foto biasanya 100 sampai 300 KB. Server hanya menerima isi berkas yang benar-benar JPEG, paling besar 800 KB, dan paling banyak 8 foto per aset.
 
 ## Struktur kode
 
@@ -116,7 +120,7 @@ Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".ba
 - SQLite butuh disk yang menetap. Sistem ini cocok di VPS atau container dengan volume, dan tidak cocok di hosting serverless yang disknya hilang tiap deploy. Kalau nanti pindah ke PostgreSQL, yang diganti adalah `src/lib/db.ts` dan beberapa sintaks SQL.
 - Pembatas percobaan masuk dan pembatas formulir website disimpan di memori proses, jadi hanya berlaku untuk satu server. Pembatas ini membaca IP dari header yang disebut `HEADER_IP` di `.env`. Isi dengan header yang ditulis proxy sendiri (misalnya `x-real-ip`), karena `x-forwarded-for` dari pengunjung bisa dipalsukan. Satu username dikunci 15 menit setelah 10 percobaan dari alamat mana pun.
 - Isi identitas usaha, kontak, dan rekening di Pengaturan. Selama kosong, website tidak menampilkan kontak.
-- Website belum punya foto. Ilustrasi tenda dan ikon katalog adalah gambar SVG pengganti.
+- Aset yang belum punya foto tampil dengan ilustrasi SVG pengganti di katalog. Tambahkan foto asli di halaman tiap aset.
 - Aset dilacak per jumlah, belum per unit bernomor seri.
 - Belum ada: PDF buatan server (cetak memakai dialog browser), unggah foto bukti pasang, notifikasi WhatsApp atau email, dan pengembalian dana.
 - Jejak audit hanya mencegah perubahan lewat aplikasi. Orang yang memegang berkas basis data di server tetap bisa mengubahnya, jadi salin cadangan secara berkala ke tempat yang dipegang kedua partner.

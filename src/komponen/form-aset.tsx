@@ -27,6 +27,12 @@ export function FormAset({ aset: a }: { aset?: Aset }) {
       <Bidang label="Harga sewa per hari (Rp)" id="harga">
         <input className="isian" id="harga" name="harga" inputMode="numeric" defaultValue={a?.harga ?? ""} />
       </Bidang>
+      <Bidang label="Kapasitas (opsional)" id="kapasitas" className="md:col-span-2">
+        <input className="isian" id="kapasitas" name="kapasitas" maxLength={60} placeholder="sekitar 30 kursi" defaultValue={a?.kapasitas} />
+      </Bidang>
+      <Bidang label="Cocok untuk (opsional)" id="cocok" className="md:col-span-2">
+        <input className="isian" id="cocok" name="cocok" maxLength={80} placeholder="hajatan, bazar, pameran" defaultValue={a?.cocok} />
+      </Bidang>
       <Bidang label="Deskripsi singkat untuk website" id="deskripsi" className="md:col-span-4">
         <input className="isian" id="deskripsi" name="deskripsi" maxLength={300} defaultValue={a?.deskripsi} />
       </Bidang>

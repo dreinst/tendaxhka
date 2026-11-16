@@ -150,3 +150,17 @@ export function nomorWa(teks: string): string | null {
   else if (n.startsWith("8")) n = `62${n}`;
   return /^628\d{7,11}$/.test(n) ? n : null;
 }
+
+// Nama berkas foto dibuat sendiri oleh server: 32 karakter heksadesimal dan akhiran .jpg. Nama lain ditolak,
+// jadi alamat /foto/... tidak bisa dipakai untuk membaca berkas di luar folder foto.
+export function namaFotoSah(nama: string): boolean {
+  return /^[a-f0-9]{32}\.jpg$/.test(nama);
+}
+
+// Pemeriksaan ringan bahwa isi berkas memang JPEG: diawali FF D8 FF dan diakhiri FF D9.
+export function tampakJpeg(b: Uint8Array): boolean {
+  return b.length > 4 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff && b[b.length - 2] === 0xff && b[b.length - 1] === 0xd9;
+}
+
+export const MAKS_FOTO_PER_ASET = 8;
+export const MAKS_UKURAN_FOTO = 800_000;

@@ -37,8 +37,21 @@ CREATE TABLE IF NOT EXISTS aset (
   harga INTEGER NOT NULL DEFAULT 0 CHECK (harga >= 0),
   deskripsi TEXT NOT NULL DEFAULT '',
   tampil_web INTEGER NOT NULL DEFAULT 1,
-  aktif INTEGER NOT NULL DEFAULT 1
+  aktif INTEGER NOT NULL DEFAULT 1,
+  kapasitas TEXT NOT NULL DEFAULT '',
+  cocok TEXT NOT NULL DEFAULT ''
 );
+
+-- Foto aset untuk katalog website. Berkasnya ada di folder foto (lihat src/lib/foto.ts), di sini hanya nama
+-- berkasnya. Urutan terkecil menjadi sampul. Basis data lama mendapat kolom kapasitas dan cocok lewat db.ts.
+CREATE TABLE IF NOT EXISTS aset_foto (
+  id INTEGER PRIMARY KEY,
+  aset_id INTEGER NOT NULL REFERENCES aset (id) ON DELETE CASCADE,
+  berkas TEXT NOT NULL UNIQUE,
+  urutan INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_foto_aset ON aset_foto (aset_id, urutan);
 
 -- Unit yang sedang diperbaiki tidak bisa disewakan sampai kolom selesai diisi.
 CREATE TABLE IF NOT EXISTS perawatan (
