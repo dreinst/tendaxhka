@@ -13,6 +13,8 @@ Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Se
 | 7 | `2c87181` | Tombol WhatsApp di website |
 | 8 | `e3f37bd` | Unit dalam perawatan tidak bisa melebihi jumlah aset |
 | 9 | `e8089a4` | Jejak audit mencatat tanggal lama pesanan |
+| 10 | `67e152e` | Foto aset di dashboard |
+| 11 | `b404d55` | Katalog interaktif di landing page |
 
 ## Yang perlu dilakukan di server sebelum deploy
 
@@ -25,7 +27,7 @@ Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Se
 ## Pemeriksaan
 
 - `npm run lint` dan `npm run typecheck` lulus.
-- `npm test`: 19 tes lulus, termasuk 4 tes baru (`hariTerpadat`, jejak audit tidak bisa diubah, `nomorWa`, `unitDirawat`).
+- `npm test`: 23 tes lulus, termasuk 8 tes baru (`hariTerpadat`, jejak audit tidak bisa diubah, `nomorWa`, `unitDirawat`, nama berkas foto, pemeriksaan JPEG, urutan sampul, penyimpanan berkas foto).
 - `npm run build` lulus. Build dijalankan di salinan yang font Google-nya diganti dummy, karena mesin uji tidak bisa mengakses fonts.googleapis.com. Kodenya sendiri tidak diubah untuk itu.
 - Uji di browser dengan `next dev`:
   - 12 percobaan login salah dengan `x-forwarded-for` berbeda tetap terkunci di percobaan ke-6.
@@ -38,6 +40,12 @@ Perbaikan hasil review keamanan dan logika atas draf awal (commit `b3faf4f`). Se
   - Pembayaran ke partner di atas bagiannya ditolak, dan yang pas diterima.
   - Booking dikembalikan ke penawaran atau dibatalkan: tugas terhapus dan tahap kontak berubah. Kontak yang punya pesanan lain tetap Menang.
   - Perawatan yang membuat booking kekurangan menampilkan peringatan. Perawatan yang totalnya melebihi jumlah aset ditolak.
+- Foto dan katalog diuji di browser:
+  - Tanpa login, `/sistem/aset` dialihkan ke `/masuk`. Peran kru tidak melihat tombol unggah dan hapus.
+  - Aset baru dengan dua foto (JPG 2400 piksel dan PNG) tersimpan sebagai JPEG kecil, lalu tampil di katalog dengan foto sampul.
+  - Jadikan sampul, saringan kategori, galeri, perkiraan biaya (3 unit selama 2 hari = Rp 7.200.000), dan isi pesan WhatsApp sesuai.
+  - `/foto/..%2Fuji.db` dan nama berkas lain yang tidak sah dijawab 404. Menghapus foto juga menghapus berkasnya.
+  - Tidak ada gulir ke samping di layar HP 390 piksel.
 
 ## Belum dikerjakan, perlu keputusan bersama
 
