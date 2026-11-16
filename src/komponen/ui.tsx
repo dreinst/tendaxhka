@@ -10,14 +10,14 @@ export function nilai(v: string | string[] | undefined): string {
 export function Pesan({ galat, ok }: { galat?: string; ok?: string }) {
   if (galat) {
     return (
-      <p role="alert" className="mb-4 rounded-[10px] border border-terpal-gelap/40 border-b-4 bg-[#fde9e5] px-4 py-3 text-sm font-medium text-terpal-gelap">
+      <p role="alert" className="mb-4 rounded-md border border-terpal-gelap/40 bg-[#fde9e5] px-4 py-3 text-sm font-medium text-terpal-gelap">
         {galat}
       </p>
     );
   }
   if (ok) {
     return (
-      <p role="status" className="mb-4 rounded-[10px] border border-rumput/40 border-b-4 bg-[#e3f2ea] px-4 py-3 text-sm font-medium text-rumput">
+      <p role="status" className="mb-4 rounded-md border border-rumput/40 bg-[#e3f2ea] px-4 py-3 text-sm font-medium text-rumput">
         {ok}
       </p>
     );

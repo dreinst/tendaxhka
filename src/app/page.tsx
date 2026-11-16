@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { CSSProperties } from "react";
 import { Bidang, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { kirimPermintaan } from "@/lib/aksi";
 import { Katalog, type Barang } from "@/komponen/katalog";
@@ -19,46 +18,6 @@ const LANGKAH = [
   ["Tim kami memasang", "Kru datang sesuai jadwal dan memasang sebelum acara dimulai."],
   ["Tim kami membongkar", "Selesai acara, kami bongkar dan angkut kembali ke gudang."],
 ];
-
-// Deretan bendera kecil di tali, diulang selebar halaman.
-function Bendera() {
-  return (
-    <svg aria-hidden className="block h-[34px] w-full">
-      <defs>
-        <pattern id="bendera" width="120" height="34" patternUnits="userSpaceOnUse">
-          <path d="M0 4Q60 16 120 4" fill="none" stroke="#1d2a44" strokeWidth="1.5" />
-          <path d="M10 6.5h20l-10 20z" fill="#d8412f" />
-          <path d="M50 10h20l-10 20z" fill="#fbf8f1" stroke="#1d2a44" strokeWidth="1" strokeLinejoin="round" />
-          <path d="M90 6.5h20l-10 20z" fill="#f2b544" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="34" fill="url(#bendera)" />
-    </svg>
-  );
-}
-
-// Hiasan kecil di luar area foto.
-function Tenda() {
-  return (
-    <svg viewBox="0 0 520 330" role="img" aria-label="Ilustrasi tenda acara bergaris merah putih" className="w-full">
-      <ellipse cx="260" cy="304" rx="236" ry="16" fill="#1d2a44" opacity=".12" />
-      <path d="M40 150 L4 300 M480 150 L516 300" stroke="#1d2a44" strokeWidth="3" strokeLinecap="round" />
-      <path d="M150 28v-22M370 28v-22" stroke="#1d2a44" strokeWidth="4" strokeLinecap="round" />
-      <path d="M150 8l26 8-26 8zM370 8l26 8-26 8z" fill="#f2b544" />
-      <path d="M40 150 L150 28 L260 112 L370 28 L480 150 Z" fill="#fbf8f1" stroke="#1d2a44" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M150 28 L95 150 H40 Z M150 28 L205 150 H150 Z M370 28 L315 150 H260 L260 112 Z M370 28 L425 150 H370 Z" fill="#d8412f" />
-      <path d="M40 150 L150 28 L260 112 L370 28 L480 150 Z" fill="none" stroke="#1d2a44" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M40 150h440v20q-11 14-22 0t-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0-22 0z" fill="#a52e20" stroke="#1d2a44" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M56 176v124M464 176v124M260 176v124" stroke="#1d2a44" strokeWidth="6" strokeLinecap="round" />
-      <path d="M62 180h192v120H62z M266 180h192v120H266z" fill="#ebe3d3" />
-      <path d="M62 180h192l-26 46q-34 20-70 0-36-20-96-46z M458 180H266l26 46q34 20 70 0 36-20 96-46z" fill="#fbf8f1" stroke="#1d2a44" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M20 300h480" stroke="#2f7d5b" strokeWidth="8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// Jeda animasi muncul untuk elemen di hero.
-const tunda = (ms: number) => ({ "--tunda": `${ms}ms` }) as CSSProperties;
 
 // Tautan chat WhatsApp dengan pesan pembuka yang sudah terisi.
 function tautanWa(nomor: string, pesan: string): string {
@@ -87,18 +46,24 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
     foto: foto.get(a.id) ?? [],
   }));
   const kategori = urutKategori(aset.map((a) => a.kategori));
+  const fakta: [string, string][] = [
+    [String(aset.length), "jenis barang di katalog"],
+    [String(kategori.length), "kategori, dari tenda sampai perlengkapan"],
+    ["Diantar, dipasang, dibongkar", "oleh tim kami"],
+    ["Penawaran", "sesudah cek ketersediaan tanggal"],
+  ];
   return (
     <>
-      <a href="#utama" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">
+      <a href="#utama" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2">
         Langsung ke isi
       </a>
-      <header className="sticky top-0 z-40 border-b border-garis bg-kanvas/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/" className="font-judul text-base font-bold">{s.nama_usaha}</Link>
-          <nav aria-label="Utama" className="hidden gap-6 text-sm font-semibold md:flex">
-            <a href="#katalog" className="hover:text-terpal-gelap">Katalog</a>
-            <a href="#cara-sewa" className="hover:text-terpal-gelap">Cara sewa</a>
-            <a href="#kontak" className="hover:text-terpal-gelap">Kontak</a>
+      <header className="sticky top-0 z-40 border-b border-garis bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5">
+          <Link href="/" className="inline-flex min-h-10 items-center font-judul text-base font-bold tracking-tight">{s.nama_usaha}</Link>
+          <nav aria-label="Utama" className="hidden gap-6 text-sm font-medium md:flex">
+            <a href="#katalog" className="inline-flex min-h-10 items-center hover:text-terpal-gelap">Katalog</a>
+            <a href="#cara-sewa" className="inline-flex min-h-10 items-center hover:text-terpal-gelap">Cara sewa</a>
+            <a href="#kontak" className="inline-flex min-h-10 items-center hover:text-terpal-gelap">Kontak</a>
           </nav>
           <div className="flex gap-2">
             {wa && (
@@ -112,106 +77,87 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
       </header>
 
       <main id="utama">
-        <section className="relative overflow-hidden">
-          <p aria-hidden className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 select-none whitespace-nowrap font-judul text-[22vw] font-bold leading-none text-tinta/[0.045]">
-            TENDA
-          </p>
-          <div className="relative"><Bendera /></div>
-          <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-8 md:grid-cols-2 md:pb-20 md:pt-10">
-            <div>
-              <h1 style={tunda(0)} className="muncul text-3xl font-bold leading-tight md:text-5xl md:leading-[1.15]">
-                Sewa tenda untuk acara Anda, kami yang <span className="stabilo">pasang dan bongkar</span>.
-              </h1>
-              <p style={tunda(120)} className="muncul mt-5 max-w-md text-base text-tinta-lembut md:text-lg">
-                Tenda dan perlengkapannya keluar dari gudang kami sendiri, diantar dan dipasang oleh tim teknis kami. Kirim tanggal dan lokasi
-                acara, kami cek ketersediaannya lalu mengirim penawaran.
-              </p>
-              <div style={tunda(240)} className="muncul mt-7 flex flex-wrap gap-3">
-                <a href="#kontak" className="tombol tombol-utama px-5 text-base">Minta penawaran</a>
-                {wa && (
-                  <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol px-5 text-base">
-                    Chat WhatsApp
-                  </a>
-                )}
-                <a href="#katalog" className="tombol px-5 text-base">Lihat katalog</a>
-              </div>
-              <p style={tunda(360)} className="muncul stiker mt-8 max-w-[15rem]">Diantar, dipasang, dibongkar tim kami</p>
-            </div>
-            <div style={tunda(180)} className="muncul relative mx-auto w-full max-w-lg px-2 pb-6 md:max-w-none md:pb-16">
-              <figure className="foto-cetak">
-                <span aria-hidden className="selotip left-3 -rotate-6" />
-                <span aria-hidden className="selotip right-3 rotate-6" />
-                <div className="slot-foto rounded-md">
-                  <Image
-                    src="/katalog/11-hero.jpg"
-                    alt="Atap tenda putih besar di bawah langit biru, foto ilustrasi"
-                    width={1800}
-                    height={1200}
-                    sizes="(min-width: 1152px) 540px, (min-width: 768px) 45vw, 90vw"
-                    preload
-                    className="block h-auto w-full"
-                  />
-                </div>
-                <figcaption className="pb-1 pt-3 text-center text-xs font-semibold text-tinta-lembut">Foto ilustrasi</figcaption>
-              </figure>
-              <div aria-hidden className="absolute bottom-0 left-0 hidden w-24 md:block"><Tenda /></div>
+        <section className="relative h-[420px] overflow-hidden bg-tinta md:h-[460px]">
+          <Image
+            src="/katalog/11-hero.jpg"
+            alt="Atap tenda putih besar di bawah langit biru, foto ilustrasi"
+            fill
+            preload
+            sizes="100vw"
+            className="object-cover"
+          />
+          <div aria-hidden className="absolute inset-0 bg-tinta/75" />
+          <div className="relative mx-auto flex h-full max-w-7xl flex-col justify-center px-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/80">Rental tenda dan perlengkapan acara</p>
+            <h1 className="mt-3 max-w-2xl text-[30px] font-bold text-white md:text-[46px]">
+              Sewa tenda untuk acara Anda, kami yang pasang dan bongkar.
+            </h1>
+            <p className="mt-4 max-w-xl text-[15px] text-white/85 md:text-base">
+              Tenda dan perlengkapannya keluar dari gudang kami sendiri, diantar dan dipasang oleh tim teknis kami. Kirim tanggal dan lokasi
+              acara, kami cek ketersediaannya lalu mengirim penawaran.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <a href="#kontak" className="tombol tombol-utama px-5">Minta penawaran</a>
+              <a href="#katalog" className="tombol px-5">Lihat katalog</a>
+              {wa && (
+                <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol px-5">
+                  Chat WhatsApp
+                </a>
+              )}
             </div>
           </div>
-          <div className="lisplang" aria-hidden />
+          <p className="absolute bottom-2 right-3 text-xs text-white/80">Foto ilustrasi</p>
         </section>
 
-        {kategori.length > 0 && (
-          <nav aria-label="Kategori barang" className="border-b border-garis bg-kertas">
-            <div className="garis-atap" aria-hidden />
-            <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-4">
-              <span className="mr-1 text-sm font-semibold text-tinta-lembut">Yang bisa disewa</span>
-              {kategori.map((k) => (
-                <a key={k} href="#katalog" className="chip">{k}</a>
-              ))}
-            </div>
-          </nav>
-        )}
+        <div className="border-b border-garis">
+          <dl className="mx-auto grid max-w-7xl grid-cols-2 md:grid-cols-4 [&>div]:border-garis [&>div]:px-4 [&>div]:py-3 [&>div:nth-child(odd)]:border-r [&>div:nth-child(-n+2)]:border-b md:[&>div]:border-b-0 md:[&>div]:border-r md:[&>div:last-child]:border-r-0 md:[&>div:nth-child(-n+2)]:border-b-0">
+            {fakta.map(([angka, ket]) => (
+              <div key={ket}>
+                <dt className="text-[15px] font-bold tabular-nums">{angka}</dt>
+                <dd className="text-[13px] text-tinta-lembut">{ket}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
 
-        <section id="katalog" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14">
-          <h2 className="text-2xl font-bold md:text-3xl">Katalog sewa</h2>
-          <p className="mt-2 max-w-xl text-tinta-lembut">Harga per hari, belum termasuk antar, pasang, dan bongkar. Buka rincian untuk melihat foto dan menghitung perkiraan biaya.</p>
+        <section id="katalog" className="mx-auto max-w-7xl scroll-mt-14 px-4 py-7 md:py-10">
           <Katalog barang={barang} wa={wa} namaUsaha={s.nama_usaha} />
-          <p className="mt-6 text-xs text-tinta-lembut">Foto di katalog adalah foto ilustrasi, wujud barang bisa berbeda.</p>
+          <p className="mt-4 text-xs text-tinta-lembut">Foto di katalog adalah foto ilustrasi, wujud barang bisa berbeda.</p>
         </section>
 
-        <section id="cara-sewa" className="scroll-mt-20 bg-tinta text-white">
-          <div className="mx-auto max-w-6xl px-4 py-14">
-            <h2 className="text-2xl font-bold md:text-3xl">Cara sewa</h2>
-            <ol className="mt-8 grid gap-4 md:grid-cols-5">
+        <section id="cara-sewa" className="scroll-mt-14 border-y border-garis bg-kertas">
+          <div className="mx-auto max-w-7xl px-4 py-7 md:py-10">
+            <h2 className="text-2xl font-bold">Cara sewa</h2>
+            <ol className="mt-4 grid gap-px border border-garis bg-garis md:grid-cols-2 lg:grid-cols-5">
               {LANGKAH.map(([judul, isi], i) => (
-                <li key={judul} className="tali-langkah rounded-[10px] border border-white/15 border-b-4 border-b-black/40 bg-white/[0.07] p-4 shadow-[inset_0_1px_0_rgb(255_255_255/0.12)]">
-                  <span className="grid size-9 place-items-center rounded-lg border-b-4 border-lampu-gelap bg-lampu font-judul text-sm font-bold text-tinta">{i + 1}</span>
-                  <h3 className="mt-3 font-isi text-base font-bold">{judul}</h3>
-                  <p className="mt-1 text-sm text-white/75">{isi}</p>
+                <li key={judul} className="bg-white p-4">
+                  <span className="text-sm font-bold tabular-nums text-terpal">{String(i + 1).padStart(2, "0")}</span>
+                  <h3 className="mt-1 text-base font-semibold">{judul}</h3>
+                  <p className="mt-1 text-[13px] leading-snug text-tinta-lembut">{isi}</p>
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        <section id="kontak" className="mx-auto grid max-w-6xl scroll-mt-20 gap-8 px-4 py-14 md:grid-cols-[1fr_1.2fr]">
+        <section id="kontak" className="mx-auto grid max-w-7xl scroll-mt-14 gap-6 px-4 py-7 md:py-10 lg:grid-cols-[1fr_1.7fr] lg:gap-10">
           <div>
-            <h2 className="text-2xl font-bold md:text-3xl">Minta penawaran</h2>
-            <p className="mt-3 text-tinta-lembut">Ceritakan acaranya. Kami menghubungi Anda lewat nomor yang diisi.</p>
+            <h2 className="text-2xl font-bold">Minta penawaran</h2>
+            <p className="mt-2 text-tinta-lembut">Ceritakan acaranya. Kami menghubungi Anda lewat nomor yang diisi.</p>
             {wa && (
-              <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol tombol-utama mt-5 px-5 text-base">
+              <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol tombol-utama mt-4 px-5">
                 Lebih cepat lewat WhatsApp
               </a>
             )}
-            <dl className="mt-6 space-y-2 text-sm">
+            <dl className="mt-5 space-y-1.5 border-t border-garis pt-4 text-sm">
               {s.telepon && <div><dt className="inline font-semibold">Telepon: </dt><dd className="inline">{s.telepon}</dd></div>}
               {s.email && <div><dt className="inline font-semibold">Email: </dt><dd className="inline">{s.email}</dd></div>}
               {s.alamat && <div><dt className="inline font-semibold">Gudang: </dt><dd className="inline">{s.alamat}</dd></div>}
             </dl>
           </div>
-          <div className="kartu p-5">
+          <div className="kartu p-4">
             <Pesan galat={nilai(sp.galat)} ok={nilai(sp.terkirim) ? "Permintaan Anda sudah kami terima. Kami akan menghubungi Anda." : undefined} />
-            <form action={kirimPermintaan} className="grid gap-3 sm:grid-cols-2">
+            <form action={kirimPermintaan} className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
               <Bidang label="Nama" id="nama">
                 <input className="isian" id="nama" name="nama" required maxLength={80} autoComplete="name" />
               </Bidang>
@@ -240,17 +186,17 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                 <label htmlFor="situs">Jangan diisi</label>
                 <input id="situs" name="situs" tabIndex={-1} autoComplete="off" />
               </div>
-              <div className="sm:col-span-2"><button className="tombol tombol-utama px-5 text-base">Kirim permintaan</button></div>
+              <div className="sm:col-span-2"><button className="tombol tombol-utama px-5">Kirim permintaan</button></div>
             </form>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-garis">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-tinta-lembut">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2 text-[13px] text-tinta-lembut">
           <p>{s.nama_usaha}</p>
           {s.telepon && <p>{s.telepon}</p>}
-          <Link href="/kredit-foto" className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
+          <Link href="/kredit-foto" className="inline-flex min-h-10 items-center underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
         </div>
       </footer>
 
@@ -259,7 +205,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
           href={tautanWa(wa, sapa)}
           target="_blank"
           rel="noopener noreferrer"
-          className="tombol tombol-utama fixed bottom-4 right-4 z-50 px-5 shadow-lg sm:hidden"
+          className="tombol tombol-utama fixed bottom-3 right-3 z-50 px-5 shadow-lg sm:hidden"
         >
           Chat WhatsApp
         </a>

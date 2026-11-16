@@ -25,13 +25,12 @@ export default async function LayoutSistem({ children }: { children: React.React
   return (
     <div className="min-h-screen md:grid md:grid-cols-[14rem_1fr]">
       <aside className="tanpa-cetak bg-tinta text-white md:sticky md:top-0 md:h-screen md:overflow-y-auto">
-        <div className="px-4 pb-3 pt-4">
+        <div className="border-b border-white/10 px-4 pb-3 pt-4">
           <Link href="/sistem" className="font-judul text-sm font-bold">
             Tenda Indonesia
           </Link>
           <p className="text-xs text-white/60">bersama HKA Management</p>
         </div>
-        <div className="lisplang" aria-hidden />
         <nav aria-label="Menu sistem" className="flex gap-1 overflow-x-auto px-2 py-2 md:block md:space-y-1">
           {MENU.filter((m) => !m.hak || boleh(u.peran, m.hak)).map((m) => (
             <Link key={m.href} href={m.href} className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white">

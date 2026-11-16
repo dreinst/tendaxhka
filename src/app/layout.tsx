@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Unbounded } from "next/font/google";
+import { Inter, Inter_Tight } from "next/font/google";
 import "./globals.css";
 
-const judul = Unbounded({ subsets: ["latin"], variable: "--font-unbounded", weight: ["500", "700"] });
-const isi = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage" });
+const judul = Inter_Tight({ subsets: ["latin"], variable: "--font-inter-tight", weight: ["600", "700"] });
+const isi = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   metadataBase: process.env.SITUS_URL ? new URL(process.env.SITUS_URL) : undefined,

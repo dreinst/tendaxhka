@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Kredit foto" };
 export default function KreditFoto() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-12">
-      <Link href="/" className="text-sm font-semibold underline underline-offset-2">Kembali ke beranda</Link>
+      <Link href="/" className="inline-flex min-h-10 items-center text-sm font-semibold underline underline-offset-2">Kembali ke beranda</Link>
       <h1 className="mt-4 text-2xl font-bold md:text-3xl">Kredit foto</h1>
       <p className="mt-3 text-tinta-lembut">
         Foto di website ini adalah foto ilustrasi dari fotografer lain, bukan dokumentasi acara Tenda Indonesia. Wujud barang yang disewakan bisa berbeda.

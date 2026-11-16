@@ -64,7 +64,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
       <Pesan galat={galat} />
 
       {kurang.length > 0 && (
-        <p className="mb-4 rounded-[10px] border border-lampu-gelap/50 border-b-4 bg-[#fdf0d2] px-4 py-3 text-sm text-[#7a5209]">
+        <p className="mb-4 rounded-md border border-lampu-gelap/50 bg-[#fdf0d2] px-4 py-3 text-sm text-[#7a5209]">
           Aset belum cukup untuk dibooking di tanggal ini. {kurang.join("; ")}.
         </p>
       )}

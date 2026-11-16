@@ -1,55 +1,52 @@
 @import "tailwindcss";
 
 @theme {
-  --color-kanvas: #f4eee2;
-  --color-kertas: #fbf8f1;
+  --color-kanvas: #ffffff;
+  --color-kertas: #f5f5f3;
   --color-tinta: #1d2a44;
-  --color-tinta-lembut: #5a6478;
-  --color-terpal: #d8412f;
+  --color-tinta-lembut: #566073;
+  --color-terpal: #c93a28;
   --color-terpal-gelap: #a52e20;
   --color-lampu: #f2b544;
   --color-lampu-gelap: #c98a1c;
   --color-rumput: #2f7d5b;
-  --color-garis: #dccfb8;
-  --font-judul: var(--font-unbounded), system-ui, sans-serif;
-  --font-isi: var(--font-bricolage), system-ui, sans-serif;
+  --color-garis: #e3e1dc;
+  --font-judul: var(--font-inter-tight), system-ui, sans-serif;
+  --font-isi: var(--font-inter), system-ui, sans-serif;
 }
 
 body {
   background: var(--color-kanvas);
   color: var(--color-tinta);
   font-family: var(--font-isi);
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 h1,
 h2,
 h3 {
   font-family: var(--font-judul);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-lampu-gelap);
+  outline: 2px solid var(--color-tinta);
   outline-offset: 2px;
 }
 
-/* Tepi bawah lebih gelap dan sorot tipis di atas memberi kesan benda timbul. Bayangan netral dan rapat. */
+/* Permukaan datar: latar putih, garis 1 px, sudut 6 px. */
 @utility kartu {
-  background: linear-gradient(#fff, var(--color-kertas));
+  background: #fff;
   border: 1px solid var(--color-garis);
-  border-bottom-width: 4px;
-  border-radius: 10px;
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 2px 4px rgb(29 42 68 / 0.08);
+  border-radius: 6px;
 }
 
 @utility ceruk {
-  background: #ebe3d3;
-  border-radius: 10px;
-  box-shadow:
-    inset 0 3px 6px rgb(29 42 68 / 0.16),
-    inset 0 -1px 0 #fff;
+  background: var(--color-kertas);
+  border: 1px solid var(--color-garis);
+  border-radius: 6px;
 }
 
 @utility tombol {
@@ -58,67 +55,56 @@ h3 {
   justify-content: center;
   gap: 0.4rem;
   min-height: 2.5rem;
-  padding: 0.45rem 0.95rem;
-  border-radius: 10px;
-  border: 1px solid var(--color-garis);
-  border-bottom-width: 4px;
-  background: linear-gradient(#fff, #f1eadb);
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #cfccc5;
+  background: #fff;
   color: var(--color-tinta);
   font-weight: 600;
   font-size: 0.9rem;
   line-height: 1.2;
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 1px 2px rgb(29 42 68 / 0.12);
-  transition:
-    transform 0.08s,
-    border-bottom-width 0.08s;
   &:hover {
-    filter: brightness(0.97);
-  }
-  &:active {
-    transform: translateY(2px);
-    border-bottom-width: 2px;
+    background: var(--color-kertas);
+    border-color: #b9b5ac;
   }
 }
 
 @utility tombol-utama {
-  background: linear-gradient(#e2513e, var(--color-terpal));
-  border-color: var(--color-terpal-gelap);
+  background: var(--color-terpal);
+  border-color: var(--color-terpal);
   color: #fff;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    0 1px 2px rgb(29 42 68 / 0.2);
+  &:hover {
+    background: var(--color-terpal-gelap);
+    border-color: var(--color-terpal-gelap);
+  }
 }
 
 @utility tombol-tinta {
-  background: linear-gradient(#2a3b5e, var(--color-tinta));
-  border-color: #0f1829;
+  background: var(--color-tinta);
+  border-color: var(--color-tinta);
   color: #fff;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.2),
-    0 1px 2px rgb(29 42 68 / 0.2);
+  &:hover {
+    background: #111b30;
+    border-color: #111b30;
+  }
 }
 
 @utility tombol-kecil {
-  min-height: 2rem;
-  padding: 0.25rem 0.65rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.7rem;
   font-size: 0.8rem;
-  border-bottom-width: 3px;
-  border-radius: 8px;
 }
 
 @utility isian {
   width: 100%;
   min-height: 2.5rem;
   padding: 0.4rem 0.65rem;
-  border-radius: 8px;
-  border: 1px solid #c9bca3;
+  border-radius: 6px;
+  border: 1px solid #c4c0b7;
   background: #fff;
   color: var(--color-tinta);
   font-size: 0.9rem;
-  box-shadow: inset 0 2px 3px rgb(29 42 68 / 0.08);
 }
 
 @utility label {
@@ -132,7 +118,7 @@ h3 {
 @utility lencana {
   display: inline-block;
   padding: 0.1rem 0.5rem;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
@@ -152,12 +138,12 @@ h3 {
     letter-spacing: 0.04em;
     color: var(--color-tinta-lembut);
     padding: 0.55rem 0.75rem;
-    border-bottom: 2px solid var(--color-garis);
+    border-bottom: 1px solid var(--color-garis);
     white-space: nowrap;
   }
   .tabel td {
     padding: 0.55rem 0.75rem;
-    border-bottom: 1px solid #ebe3d3;
+    border-bottom: 1px solid #ece9e3;
     vertical-align: top;
   }
   .tabel tbody th {
@@ -165,7 +151,7 @@ h3 {
     letter-spacing: 0;
     font-size: 0.88rem;
     color: var(--color-tinta);
-    border-bottom: 1px solid #ebe3d3;
+    border-bottom: 1px solid #ece9e3;
   }
   .tabel tr:last-child td {
     border-bottom: 0;
@@ -177,159 +163,29 @@ h3 {
   }
 }
 
-/* Chip kategori: tombol timbul kecil. Dipakai sebagai tautan di pita kategori dan sebagai tombol saringan. */
+/* Chip kategori: dipakai sebagai tautan atau tombol saringan. */
 @utility chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   min-height: 2.5rem;
-  padding: 0.3rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-garis);
-  border-bottom-width: 3px;
-  background: linear-gradient(#fff, #f1eadb);
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #cfccc5;
+  background: #fff;
   color: var(--color-tinta);
   font-size: 0.85rem;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 1px 2px rgb(29 42 68 / 0.1);
-  transition:
-    transform 0.12s,
-    border-bottom-width 0.08s;
   &:hover {
-    transform: translateY(-1px);
-  }
-  &:active {
-    transform: translateY(1px);
-    border-bottom-width: 2px;
+    background: var(--color-kertas);
   }
   &[aria-pressed="true"] {
-    background: linear-gradient(#2a3b5e, var(--color-tinta));
-    border-color: #0f1829;
+    background: var(--color-tinta);
+    border-color: var(--color-tinta);
     color: #fff;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
   }
-}
-
-/* Slot foto: bayangan dalam supaya foto terasa masuk ke bingkai. Lapisannya tidak menangkap klik. */
-.slot-foto {
-  position: relative;
-  overflow: hidden;
-  background: #ebe3d3;
-}
-.slot-foto::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow:
-    inset 0 3px 6px rgb(29 42 68 / 0.28),
-    inset 0 0 0 1px rgb(29 42 68 / 0.12);
-}
-
-/* Foto cetak: tepi putih kertas, tepi bawah tebal, sedikit miring, dua selotip di tepi atas. */
-.foto-cetak {
-  position: relative;
-  padding: 1rem 1rem 0.5rem;
-  background: linear-gradient(#fff, var(--color-kertas));
-  border: 1px solid var(--color-garis);
-  border-bottom-width: 5px;
-  border-radius: 8px;
-  box-shadow:
-    inset 0 1px 0 #fff,
-    0 4px 8px rgb(29 42 68 / 0.14);
-  transform: rotate(2deg);
-}
-.selotip {
-  position: absolute;
-  top: -0.65rem;
-  width: 4.2rem;
-  height: 1.35rem;
-  background: linear-gradient(rgb(242 181 68 / 0.85), rgb(201 138 28 / 0.75));
-  border-radius: 2px;
-  box-shadow: 0 1px 2px rgb(29 42 68 / 0.2);
-}
-
-/* Sorot seperti stabilo. Latar bergaris miring tipis, teks tetap tinta di atas warna lampu. */
-.stabilo {
-  color: var(--color-tinta);
-  padding: 0 0.2em;
-  border-radius: 6px;
-  background: linear-gradient(178deg, transparent 8%, var(--color-lampu) 8% 92%, transparent 92%);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-}
-
-.stiker {
-  display: inline-block;
-  padding: 0.55rem 0.9rem;
-  border: 3px solid var(--color-tinta);
-  border-radius: 8px;
-  background: linear-gradient(#f7c862, var(--color-lampu));
-  color: var(--color-tinta);
-  font-family: var(--font-judul);
-  font-size: 0.8rem;
-  font-weight: 700;
-  line-height: 1.3;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    0 4px 0 var(--color-tinta);
-  transform: rotate(-3deg);
-}
-
-/* Garis atap merah putih. */
-.garis-atap {
-  height: 6px;
-  background: repeating-linear-gradient(90deg, var(--color-terpal) 0 14px, var(--color-kertas) 14px 28px);
-}
-
-/* Kartu katalog terangkat 2 px saat disorot. */
-.angkat {
-  transition: transform 0.15s;
-}
-.angkat:hover {
-  transform: translateY(-2px);
-}
-
-/* Tali putus-putus antar nomor di bagian cara sewa, hanya di layar lebar. */
-@media (min-width: 768px) {
-  .tali-langkah {
-    position: relative;
-  }
-  .tali-langkah:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    top: calc(1rem + 18px - 1px);
-    left: calc(1rem + 36px + 6px);
-    width: calc(100% - 32px);
-    border-top: 2px dashed rgb(255 255 255 / 0.45);
-  }
-}
-
-/* Muncul saat dimuat: geser kecil sambil memudar, berurutan lewat --tunda. */
-@keyframes muncul {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.muncul {
-  animation: muncul 0.55s ease-out both;
-  animation-delay: var(--tunda, 0ms);
-}
-
-/* Tepi atap tenda: deretan lengkung seperti lisplang kain. */
-.lisplang {
-  height: 18px;
-  background: radial-gradient(circle at 14px 0, var(--color-terpal) 13px, transparent 14px) 0 0 / 28px 18px repeat-x;
 }
 
 @media (prefers-reduced-motion: reduce) {

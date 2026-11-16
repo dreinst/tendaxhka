@@ -19,8 +19,7 @@ export default async function Masuk({ searchParams }: { searchParams: Cari }) {
             <p className="font-judul text-lg font-bold">Tenda Indonesia</p>
             <p className="mt-1 text-sm text-white/75">Sistem operasional bersama HKA Management</p>
           </div>
-          <div className="lisplang" aria-hidden />
-          <form action={masuk} className="space-y-4 px-6 pb-6 pt-3">
+          <form action={masuk} className="space-y-4 px-6 pb-6 pt-4">
             <h1 className="text-base font-bold">{pertama ? "Buat akun admin pertama" : "Masuk"}</h1>
             <Pesan galat={galat} />
             {pertama && (
