@@ -3,8 +3,9 @@ import { test } from "node:test";
 
 process.env.DB_PATH = ":memory:";
 
-const { biayaBulan, bulanTerkunci, daftarPesanan, kekurangan, kunciBulan, labaBulan, nomorBerikut, pendapatanBulan } = await import("../src/lib/data.ts");
-const { jalankan } = await import("../src/lib/db.ts");
+const { ambilPesanan, biayaBulan, bulanTerkunci, cabutSesiLain, daftarLog, daftarPesanan, galatStatus, galatUbahPesanan, salinPesanan, setStatusPesanan, kekurangan, kunciBulan, labaBulan, nomorBerikut, pendapatanBulan } = await import("../src/lib/data.ts");
+const { waktuKini } = await import("../src/lib/format.ts");
+const { jalankan, semua: satuan } = await import("../src/lib/db.ts");
 
 const tenda = jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('T1', 'Tenda', 'Tenda', 10, 1000000)");
 const kontak = jalankan("INSERT INTO kontak (nama, dibuat) VALUES ('Uji', '2026-11-01')");
@@ -139,4 +140,87 @@ test("berkas foto disimpan dengan nama acak dan nama yang tidak sah tidak bisa d
   assert.equal(bacaBerkasFoto(nama), null);
   delete process.env.FOTO_DIR;
   rmSync(dir, { recursive: true, force: true });
+});
+
+const oleh = { id: 1, nama: "Penguji" };
+
+function isiBaris() {
+  return { baris: [{ asetId: tenda, deskripsi: "Tenda", jumlah: 3, hari: 1, harga: 1_000_000 }], diskon: 0, mulai: "", selesai: "" };
+}
+
+test("pesanan tidak bisa diubah sampai total di bawah yang sudah dibayar", () => {
+  const id = pesanan("G", "2027-02-01", "2027-02-02", "booking", 3);
+  jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah) VALUES (?, '2027-01-20', 2500000)", id);
+  const dasar = { ...isiBaris(), mulai: "2027-02-01", selesai: "2027-02-02" };
+  assert.equal(galatUbahPesanan(id, dasar), null);
+  assert.match(galatUbahPesanan(id, { ...dasar, diskon: 1_000_000 }) ?? "", /lebih kecil dari yang sudah dibayar/);
+  assert.equal(galatUbahPesanan(id, { ...dasar, diskon: 500_000 }), null);
+});
+
+test("sesudah faktur terbit baris, diskon, dan tanggal terkunci", () => {
+  const id = pesanan("H", "2027-03-01", "2027-03-02", "berjalan", 3);
+  jalankan("UPDATE pesanan SET tgl_faktur = '2027-03-01' WHERE id = ?", id);
+  const dasar = { ...isiBaris(), mulai: "2027-03-01", selesai: "2027-03-02" };
+  assert.equal(galatUbahPesanan(id, dasar), null);
+  assert.match(galatUbahPesanan(id, { ...dasar, diskon: 1 }) ?? "", /Faktur sudah terbit/);
+  assert.match(galatUbahPesanan(id, { ...dasar, selesai: "2027-03-03" }) ?? "", /Faktur sudah terbit/);
+  assert.match(galatUbahPesanan(id, { ...dasar, baris: [{ ...dasar.baris[0], jumlah: 4 }] }) ?? "", /Faktur sudah terbit/);
+});
+
+test("booking yang sudah dibayar tidak bisa kembali ke penawaran dan faktur dikosongkan saat kembali", () => {
+  const id = pesanan("I", "2027-04-01", "2027-04-02", "booking", 1);
+  jalankan("UPDATE pesanan SET tgl_faktur = '2027-04-01' WHERE id = ?", id);
+  jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah) VALUES (?, '2027-04-01', 100000)", id);
+  assert.match(galatStatus(ambilPesanan(id)!, "penawaran") ?? "", /sudah menerima pembayaran/);
+  assert.match(galatStatus(ambilPesanan(id)!, "batal") ?? "", /sudah menerima pembayaran/);
+  jalankan("DELETE FROM pembayaran WHERE pesanan_id = ?", id);
+  assert.equal(galatStatus(ambilPesanan(id)!, "penawaran"), null);
+  setStatusPesanan(id, "penawaran");
+  assert.equal(ambilPesanan(id)!.tgl_faktur, null);
+  assert.equal(ambilPesanan(id)!.status, "penawaran");
+});
+
+test("pendapatan akrual tidak menghitung penawaran", () => {
+  const id = pesanan("J", "2027-05-10", "2027-05-11", "penawaran", 2);
+  jalankan("UPDATE pesanan SET tgl_faktur = '2027-05-10' WHERE id = ?", id);
+  assert.equal(pendapatanBulan("2027-05", "akrual"), 0);
+  jalankan("UPDATE pesanan SET status = 'booking' WHERE id = ?", id);
+  assert.equal(pendapatanBulan("2027-05", "akrual"), 2_000_000);
+});
+
+test("mengganti sandi sendiri mencabut sesi lain dan mempertahankan sesi saat ini", () => {
+  const u = jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('Uji Sesi', 'ujisesi', 'x', 'admin')");
+  const lain = jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('Lain', 'lain', 'x', 'admin')");
+  const depan = "2099-01-01T00:00:00.000Z";
+  for (const [t, p] of [["saat-ini", u], ["perangkat-b", u], ["perangkat-c", u], ["milik-lain", lain]] as const) {
+    jalankan("INSERT INTO sesi (token, pengguna_id, kedaluwarsa) VALUES (?, ?, ?)", t, p, depan);
+  }
+  cabutSesiLain(u, "saat-ini");
+  assert.deepEqual(
+    semuaToken(),
+    ["milik-lain", "saat-ini"],
+  );
+});
+
+function semuaToken(): string[] {
+  return (satuan("SELECT token FROM sesi ORDER BY token") as { token: string }[]).map((r) => r.token);
+}
+
+test("duplikat pesanan mencatat jejak audit", () => {
+  const sumber = pesanan("K", "2027-06-01", "2027-06-03", "booking", 2);
+  const baru = salinPesanan(oleh, sumber, "2027-07-01", "2027-07-03");
+  const salinan = ambilPesanan(baru)!;
+  assert.equal(salinan.status, "penawaran");
+  assert.equal(salinan.total, 2_000_000);
+  const log = daftarLog(waktuKini().slice(0, 7));
+  const baris = log.find((l) => l.aksi === "Salin pesanan");
+  assert.ok(baris, "log salin pesanan tidak ditemukan");
+  assert.match(baris.rincian, new RegExp(`${salinan.nomor} dari K`));
+  assert.match(baris.rincian, /Rp 2\.000\.000/);
+});
+
+test("kunci periode memakai waktu WIB, bukan UTC", () => {
+  kunciBulan("2026-10");
+  const t = satuan("SELECT dikunci FROM periode WHERE bulan = '2026-10'") as { dikunci: string }[];
+  assert.match(t[0].dikunci, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
 });

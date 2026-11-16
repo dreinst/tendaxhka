@@ -1,5 +1,5 @@
-import { jalankan, satu, semua } from "./db.ts";
-import { waktuKini } from "./format.ts";
+import { jalankan, satu, semua, transaksi } from "./db.ts";
+import { hariIni, rupiah, waktuKini } from "./format.ts";
 import {
   batasBulan,
   hitungLaba,
@@ -8,6 +8,7 @@ import {
   sisaTersedia,
   totalPesanan,
   utilisasi,
+  type Baris,
   type HasilLaba,
   type Pakai,
   type Peran,
@@ -168,6 +169,80 @@ export function barisPesanan(id: number): BarisPesanan[] {
   return semua<BarisPesanan>("SELECT * FROM pesanan_baris WHERE pesanan_id = ? ORDER BY id", id);
 }
 
+type IsiPesanan = { baris: { asetId: number | null; deskripsi: string; jumlah: number; hari: number; harga: number }[]; diskon: number; mulai: string; selesai: string };
+
+// Pemeriksaan sebelum pesanan yang sudah ada disimpan ulang. Pesan galat, atau null kalau boleh disimpan.
+// Total baru tidak boleh lebih kecil dari uang yang sudah dibayar, dan sesudah faktur terbit baris, diskon,
+// dan tanggal dikunci.
+export function galatUbahPesanan(id: number, baru: IsiPesanan): string | null {
+  const p = ambilPesanan(id);
+  if (!p) return "Pesanan tidak ditemukan.";
+  if (p.tgl_faktur) {
+    const lama = barisPesanan(id).map((b) => [b.aset_id, b.deskripsi, b.jumlah, b.hari, b.harga]);
+    const isi = baru.baris.map((b) => [b.asetId, b.deskripsi, b.jumlah, b.hari, b.harga]);
+    if (JSON.stringify(lama) !== JSON.stringify(isi) || p.diskon !== baru.diskon || p.mulai !== baru.mulai || p.selesai !== baru.selesai) {
+      return "Faktur sudah terbit, jadi baris, diskon, dan tanggal pesanan tidak bisa diubah.";
+    }
+  }
+  const { total } = totalPesanan(baru.baris as Baris[], baru.diskon);
+  if (total < p.dibayar) {
+    return `Total baru ${rupiah(total)} lebih kecil dari yang sudah dibayar ${rupiah(p.dibayar)}. Hapus pembayarannya dulu atau kurangi perubahannya.`;
+  }
+  return null;
+}
+
+// Pesan galat untuk perubahan status yang melanggar aturan uang, null kalau boleh.
+export function galatStatus(p: Pesanan, tujuan: string): string | null {
+  if (p.dibayar > 0 && tujuan === "batal") return "Pesanan ini sudah menerima pembayaran. Hapus pembayarannya dulu sebelum membatalkan.";
+  if (p.dibayar > 0 && tujuan === "penawaran") return "Pesanan ini sudah menerima pembayaran. Hapus pembayarannya dulu sebelum mengembalikannya ke penawaran.";
+  return null;
+}
+
+// Mengubah status. Pesanan yang kembali ke penawaran kehilangan tanggal fakturnya.
+export function setStatusPesanan(id: number, tujuan: string): void {
+  jalankan("UPDATE pesanan SET status = ?, tgl_faktur = CASE WHEN ? = 'penawaran' THEN NULL ELSE tgl_faktur END WHERE id = ?", tujuan, tujuan, id);
+}
+
+// Mencabut semua sesi akun kecuali sesi yang sedang dipakai (hash token cookie saat ini, boleh kosong).
+export function cabutSesiLain(penggunaId: number, hashSaatIni: string | null): void {
+  jalankan("DELETE FROM sesi WHERE pengguna_id = ? AND token <> ?", penggunaId, hashSaatIni ?? "");
+}
+
+// Menyalin pesanan menjadi penawaran baru di tanggal lain, lengkap dengan jejak audit. Mengembalikan id baru.
+export function salinPesanan(oleh: { id: number; nama: string }, id: number, mulai: string, selesai: string): number {
+  const p = ambilPesanan(id);
+  if (!p) throw new Error("Pesanan sumber tidak ditemukan.");
+  return transaksi(() => {
+    const hari = hariIni();
+    const baru = jalankan(
+      "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, diskon, catatan, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      nomorBerikut(hari),
+      p.kontak_id,
+      p.acara,
+      p.lokasi,
+      mulai,
+      selesai,
+      p.diskon,
+      p.catatan,
+      hari,
+    );
+    for (const b of barisPesanan(id)) {
+      jalankan(
+        "INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, ?, ?, ?, ?, ?)",
+        baru,
+        b.aset_id,
+        b.deskripsi,
+        b.jumlah,
+        b.hari,
+        b.harga,
+      );
+    }
+    const salinan = ambilPesanan(baru)!;
+    catatLog(oleh, "Salin pesanan", `${salinan.nomor} dari ${p.nomor}, ${mulai} sampai ${selesai}, total ${rupiah(salinan.total)}`);
+    return baru;
+  });
+}
+
 export function nomorBerikut(hari: string): string {
   const awalan = `TI-${hari.slice(2, 4)}${hari.slice(5, 7)}-`;
   const akhir = satu<{ nomor: string }>("SELECT nomor FROM pesanan WHERE nomor LIKE ? ORDER BY nomor DESC LIMIT 1", `${awalan}%`);
@@ -251,7 +326,7 @@ export function kekurangan(pesananId: number): string[] {
 export function pendapatanBulan(bulan: string, basis: string): number {
   const { awal, akhir } = batasBulan(bulan);
   if (basis === "akrual") {
-    return daftarPesanan("WHERE p.status <> 'batal' AND p.tgl_faktur BETWEEN ? AND ?", awal, akhir).reduce((s, p) => s + p.total, 0);
+    return daftarPesanan("WHERE p.status NOT IN ('batal', 'penawaran') AND p.tgl_faktur BETWEEN ? AND ?", awal, akhir).reduce((s, p) => s + p.total, 0);
   }
   return satu<{ n: number }>("SELECT COALESCE(SUM(jumlah), 0) AS n FROM pembayaran WHERE tanggal BETWEEN ? AND ?", awal, akhir)!.n;
 }
@@ -330,7 +405,8 @@ export function bulanTerkunci(tanggal: string): boolean {
   return !!satu("SELECT 1 FROM periode WHERE bulan = ?", tanggal.slice(0, 7));
 }
 
-export function kunciBulan(bulan: string, waktu: string): void {
+// Waktu kunci memakai waktu WIB, sama dengan jejak audit, supaya tanggalnya tidak bergeser sehari.
+export function kunciBulan(bulan: string, waktu: string = waktuKini()): void {
   const l = labaBulan(bulan);
   jalankan(
     `INSERT INTO periode (bulan, pendapatan, biaya_langsung, biaya_operasional, cadangan, pajak, laba_bersih,

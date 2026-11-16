@@ -6,7 +6,7 @@ import { wajib } from "@/lib/auth";
 import { daftarPesanan, labaBulan, pengaturan, type Biaya } from "@/lib/data";
 import { semua } from "@/lib/db";
 import { hariIni, namaBulan, rupiah, tanggal } from "@/lib/format";
-import { batasBulan, boleh, geserBulan } from "@/lib/hitung";
+import { batasBulan, boleh, bulanSah, geserBulanSah } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Keuangan" };
 
@@ -15,7 +15,9 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
   const tulis = boleh(u.peran, "keuangan.tulis");
   const sp = await searchParams;
   const hari = hariIni();
-  const bulan = /^\d{4}-(0[1-9]|1[0-2])$/.test(nilai(sp.bulan)) ? nilai(sp.bulan) : hari.slice(0, 7);
+  const bulan = bulanSah(nilai(sp.bulan)) ? nilai(sp.bulan) : hari.slice(0, 7);
+  const sebelumnya = geserBulanSah(bulan, -1);
+  const berikutnya = geserBulanSah(bulan, 1);
   const { awal, akhir } = batasBulan(bulan);
   const laba = labaBulan(bulan);
   const basis = pengaturan().basis;
@@ -34,8 +36,8 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
   return (
     <>
       <Kepala judul="Keuangan" ket={`${namaBulan(bulan)}. Pendapatan dihitung dengan basis ${basis === "kas" ? "kas (uang yang diterima)" : "akrual (faktur yang terbit)"}.`}>
-        <Link href={`/sistem/keuangan?bulan=${geserBulan(bulan, -1)}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>
-        <Link href={`/sistem/keuangan?bulan=${geserBulan(bulan, 1)}`} className="tombol tombol-kecil">Bulan berikutnya</Link>
+        {sebelumnya && <Link href={`/sistem/keuangan?bulan=${sebelumnya}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>}
+        {berikutnya && <Link href={`/sistem/keuangan?bulan=${berikutnya}`} className="tombol tombol-kecil">Bulan berikutnya</Link>}
       </Kepala>
       <Pesan galat={nilai(sp.galat)} />
       {laba.dikunci && <Pesan ok={`Periode ini sudah ditutup pada ${tanggal(laba.dikunci.slice(0, 10))}. Transaksi di bulan ini tidak bisa ditambah atau dihapus.`} />}

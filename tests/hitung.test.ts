@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bacaChecklist, batasBulan, boleh, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, urlFoto, utilisasi, type Pakai } from "../src/lib/hitung.ts";
+import { bacaChecklist, bacaRupiah, batasBulan, boleh, bulanSah, galatLamaPesanan, geserBulanSah, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, urlFoto, utilisasi, type Pakai } from "../src/lib/hitung.ts";
 
 test("total pesanan mengalikan jumlah, hari, dan harga lalu memotong diskon", () => {
   const baris = [{ jumlah: 4, hari: 2, harga: 900_000 }, { jumlah: 1, hari: 1, harga: 1_500_000 }];
@@ -110,4 +110,50 @@ test("alamat foto: bawaan dari public, unggahan lewat /foto", () => {
   // Jalur yang menyelip tidak dianggap foto bawaan.
   assert.equal(urlFoto("katalog/../rahasia.jpg"), "/foto/katalog/../rahasia.jpg");
   assert.equal(namaFotoSah("katalog/02-sarnafil-5x5.jpg"), false);
+});
+
+test("tanggal ekstrem ditolak dan rentang tidak pernah berputar tanpa henti", () => {
+  assert.equal(tanggalSah("9999-12-31"), false);
+  assert.equal(tanggalSah("1999-12-31"), false);
+  assert.equal(tanggalSah("2000-01-01"), true);
+  assert.equal(tanggalSah("2100-12-31"), true);
+  assert.equal(tanggalSah("2101-01-01"), false);
+  assert.throws(() => rentangHari("9999-12-30", "9999-12-31"));
+  assert.throws(() => rentangHari("2000-01-01", "2100-12-31"));
+  assert.equal(rentangHari("2026-11-01", "2026-11-30").length, 30);
+});
+
+test("bulanSah dan tombol geser bulan menjaga batas tahun", () => {
+  assert.equal(bulanSah("2026-11"), true);
+  assert.equal(bulanSah("9999-12"), false);
+  assert.equal(bulanSah("2026-13"), false);
+  assert.equal(bulanSah("2026-1"), false);
+  assert.equal(geserBulanSah("2100-12", 1), null);
+  assert.equal(geserBulanSah("2000-01", -1), null);
+  assert.equal(geserBulanSah("2026-12", 1), "2027-01");
+});
+
+test("lama pesanan lebih dari 366 hari ditolak", () => {
+  assert.equal(galatLamaPesanan("2026-01-01", "2027-01-02"), null);
+  assert.match(galatLamaPesanan("2026-01-01", "2027-01-03") ?? "", /366 hari/);
+});
+
+test("bacaRupiah membaca berbagai tulisan dan menolak yang meragukan", () => {
+  for (const [masukan, hasil] of [
+    ["1500000", 1_500_000],
+    ["1.500.000", 1_500_000],
+    ["1,500,000", 1_500_000],
+    ["350.000,00", 350_000],
+    ["1,500,000.50", 1_500_000],
+    ["1500000.50", 1_500_000],
+    ["1500000,5", 1_500_000],
+    ["Rp 2.500.000", 2_500_000],
+    ["1.500", 1500],
+    ["0", 0],
+  ] as const) {
+    assert.equal(bacaRupiah(masukan), hasil, masukan);
+  }
+  for (const buruk of ["", "abc", "-5", "1.5.5", "1..500", "12.3456", "1.500,000", "0.500", "1,50,000", "1e9", "1.234.5", ".50", "99999999999999999999"]) {
+    assert.equal(bacaRupiah(buruk), null, buruk);
+  }
 });
