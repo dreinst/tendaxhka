@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Bidang, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { kirimPermintaan } from "@/lib/aksi";
-import { pengaturan, type Aset } from "@/lib/data";
+import { Katalog, type Barang } from "@/komponen/katalog";
+import { fotoPerAset, pengaturan, type Aset } from "@/lib/data";
 import { semua } from "@/lib/db";
-import { rupiah } from "@/lib/format";
 import { nomorWa } from "@/lib/hitung";
 
 // Katalog dan kontak dibaca dari basis data, jadi halaman dirender per permintaan.
@@ -36,54 +36,9 @@ function Tenda() {
   );
 }
 
-function Ikon({ kategori }: { kategori: string }) {
-  const k = kategori.toLowerCase();
-  const garis = { fill: "none", stroke: "#1d2a44", strokeWidth: 3, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  let isi = <path d="M12 52V26l20-14 20 14v26z M24 52V38h16v14" {...garis} fill="#fbf8f1" />;
-  if (k.includes("tenda")) {
-    isi = (
-      <>
-        <path d="M6 34 32 10l26 24z" fill="#d8412f" stroke="#1d2a44" strokeWidth="3" strokeLinejoin="round" />
-        <path d="M6 34h52v6q-6.5 6-13 0t-13 0-13 0-13 0z" fill="#fbf8f1" stroke="#1d2a44" strokeWidth="3" strokeLinejoin="round" />
-        <path d="M12 42v14M52 42v14M32 10V4" {...garis} />
-      </>
-    );
-  } else if (k.includes("lantai") || k.includes("panggung")) {
-    isi = <path d="M6 30 32 18l26 12-26 12z M6 30v10l26 12 26-12V30 M32 42v10" {...garis} fill="#f2b544" />;
-  } else if (k.includes("kursi") || k.includes("meja") || k.includes("furnitur")) {
-    isi = <path d="M20 8v26h24v-10H28V8z M20 34v20M44 34v20M28 34v12" {...garis} fill="#fbf8f1" />;
-  } else if (k.includes("dingin") || k.includes("kipas") || k.includes("ac")) {
-    isi = (
-      <>
-        <circle cx="32" cy="26" r="18" {...garis} fill="#fbf8f1" />
-        <path d="M32 26c0-10 8-12 8-6s-8 6-8 6zm0 0c-9 5-14-1-9-4s9 4 9 4zm0 0c9 5 4 12-1 9s1-9 1-9z M32 44v12M22 56h20" {...garis} fill="#f2b544" />
-      </>
-    );
-  } else if (k.includes("lampu") || k.includes("listrik")) {
-    isi = <path d="M32 6a16 16 0 0 0-9 29v7h18v-7a16 16 0 0 0-9-29z M25 48h14M27 54h10" {...garis} fill="#f2b544" />;
-  }
-  return <svg viewBox="0 0 64 64" aria-hidden className="size-24">{isi}</svg>;
-}
-
 // Tautan chat WhatsApp dengan pesan pembuka yang sudah terisi.
 function tautanWa(nomor: string, pesan: string): string {
   return `https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`;
-}
-
-// Label harga berbentuk tag kanvas dengan mata ayam, seperti penanda di tali tenda.
-function LabelHarga({ harga, satuan }: { harga: number; satuan: string }) {
-  return (
-    <p className="relative inline-flex -rotate-2 items-center gap-2 rounded-md border border-b-4 border-lampu-gelap bg-lampu py-1 pl-7 pr-3 text-sm font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.5),0_2px_3px_rgb(29_42_68/0.18)]">
-      <span aria-hidden className="absolute left-2 size-3 rounded-full border-2 border-tinta bg-kanvas shadow-[inset_0_1px_2px_rgb(29_42_68/0.5)]" />
-      {harga > 0 ? (
-        <>
-          {rupiah(harga)} <span className="text-xs font-medium">per {satuan} per hari</span>
-        </>
-      ) : (
-        "Harga lewat penawaran"
-      )}
-    </p>
-  );
 }
 
 export default async function Beranda({ searchParams }: { searchParams: Cari }) {
@@ -93,10 +48,21 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
   const wa = nomorWa(s.whatsapp) ?? nomorWa(s.telepon);
   const sapa = `Halo ${s.nama_usaha}, saya ingin tanya sewa tenda.`;
   const aset = semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND tampil_web = 1 ORDER BY kategori, harga DESC");
-  // Tenda tampil paling atas, kategori lain mengikuti abjad.
-  const kategori = [...new Set(aset.map((a) => a.kategori))].sort(
-    (a, b) => Number(b.toLowerCase().includes("tenda")) - Number(a.toLowerCase().includes("tenda")) || a.localeCompare(b),
-  );
+  const foto = fotoPerAset();
+  // Hanya kolom yang memang untuk pengunjung yang dikirim ke browser.
+  const barang: Barang[] = aset.map((a) => ({
+    id: a.id,
+    nama: a.nama,
+    ukuran: a.ukuran,
+    kategori: a.kategori,
+    satuan: a.satuan,
+    jumlah: a.jumlah,
+    harga: a.harga,
+    deskripsi: a.deskripsi,
+    kapasitas: a.kapasitas,
+    cocok: a.cocok,
+    foto: foto.get(a.id) ?? [],
+  }));
   return (
     <>
       <a href="#utama" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">
@@ -150,37 +116,8 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
 
         <section id="katalog" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14">
           <h2 className="text-2xl font-bold md:text-3xl">Katalog sewa</h2>
-          <p className="mt-2 max-w-xl text-tinta-lembut">Harga per hari, belum termasuk antar, pasang, dan bongkar. Rinciannya kami tulis di penawaran.</p>
-          {aset.length === 0 && <p className="kartu mt-8 p-6 text-sm text-tinta-lembut">Katalog sedang disiapkan. Tanyakan kebutuhan Anda lewat formulir di bawah.</p>}
-          {kategori.map((kat) => (
-            <div key={kat} className="mt-10">
-              <h3 className="mb-4 text-lg font-bold">{kat}</h3>
-              <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {aset.filter((a) => a.kategori === kat).map((a) => (
-                  <li key={a.id} className="kartu flex flex-col p-4">
-                    <div className="ceruk grid h-36 place-items-center"><Ikon kategori={a.kategori} /></div>
-                    <h4 className="mt-4 font-judul text-base font-bold">
-                      {a.nama} {a.ukuran && <span className="font-isi text-sm font-semibold text-tinta-lembut">{a.ukuran}</span>}
-                    </h4>
-                    {a.deskripsi && <p className="mt-1 flex-1 text-sm text-tinta-lembut">{a.deskripsi}</p>}
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <LabelHarga harga={a.harga} satuan={a.satuan} />
-                      {wa && (
-                        <a
-                          href={tautanWa(wa, `Halo ${s.nama_usaha}, saya ingin tanya sewa ${[a.nama, a.ukuran].filter(Boolean).join(" ")}.`)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-semibold underline underline-offset-2 hover:text-terpal-gelap"
-                        >
-                          Tanya lewat WA
-                        </a>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <p className="mt-2 max-w-xl text-tinta-lembut">Harga per hari, belum termasuk antar, pasang, dan bongkar. Buka rincian untuk melihat foto dan menghitung perkiraan biaya.</p>
+          <Katalog barang={barang} wa={wa} namaUsaha={s.nama_usaha} />
         </section>
 
         <section id="cara-sewa" className="scroll-mt-20 bg-tinta text-white">

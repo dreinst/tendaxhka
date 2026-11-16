@@ -162,3 +162,30 @@ Perubahan:
 Masalah: catatan "Ubah pesanan" hanya memuat tanggal baru. Kalau tanggal acara digeser, tidak terlihat dari tanggal berapa.
 
 Perubahan: `simpanPesanan` sekarang menulis "tanggal dari A sampai B menjadi C sampai D" kalau tanggalnya berubah, dan "tanggal tetap" kalau tidak. Total lama dan baru tetap dicatat seperti sebelumnya.
+
+## 10. Foto aset di dashboard
+
+Masalah: katalog di landing page hanya menampilkan ilustrasi, karena belum ada cara menyimpan foto tenda.
+
+Perubahan:
+
+- Tabel baru `aset_foto` dan kolom `kapasitas` serta `cocok` di tabel `aset`. Basis data lama mendapat kolom baru lewat pengecekan di `src/lib/db.ts`.
+- Halaman `/sistem/aset/[id]` punya bagian "Foto untuk katalog website": unggah beberapa foto sekaligus (klik atau seret), jadikan sampul, dan hapus. Hanya peran yang punya hak `aset.tulis` (admin dan gudang) yang melihat tombolnya.
+- Foto dikecilkan di browser ke sisi terpanjang 1000 piksel sebelum dikirim. Server memeriksa bahwa isinya JPEG, paling besar 800 KB, dan paling banyak 8 foto per aset.
+- Berkas disimpan di `data/foto` (atau `FOTO_DIR`) dengan nama acak buatan server. Rute `/foto/[nama]` hanya melayani nama berbentuk itu, sehingga alamat seperti `/foto/..%2Ftenda.db` ditolak.
+- Formulir aset punya kolom Kapasitas dan Cocok untuk. Aset baru langsung membuka halamannya supaya foto bisa ditambahkan.
+- Tes baru untuk nama berkas, pemeriksaan JPEG, urutan sampul, dan penyimpanan berkas.
+
+Yang perlu dilakukan: ikutkan folder `data/foto` dalam cadangan rutin.
+
+## 11. Katalog interaktif di landing page
+
+Masalah: katalog hanya berupa daftar kartu dengan ilustrasi, tanpa cara melihat rincian atau memperkirakan biaya.
+
+Perubahan:
+
+- Komponen baru `src/komponen/katalog.tsx`: saring per kategori, kartu dengan foto sampul, dan jendela rincian berisi galeri foto, ukuran, kapasitas, cocok untuk, jumlah tersedia, serta harga.
+- Di jendela rincian, pengunjung mengisi jumlah dan lama sewa, lalu perkiraan biaya langsung tampil.
+- Tombol "Tanya lewat WhatsApp" membawa pesan yang sudah berisi nama barang, jumlah, dan lama sewa. Kalau nomor WhatsApp belum diisi di Pengaturan, tombolnya mengarah ke formulir penawaran.
+- Hanya kolom untuk pengunjung yang dikirim ke browser. Kode, harga pokok, dan data internal lain tidak ikut.
+- Landing page dan dashboard tetap terpisah: pengunjung hanya melihat `/`, sedangkan foto dikelola di `/sistem/aset` setelah login.
