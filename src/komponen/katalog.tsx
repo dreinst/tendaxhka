@@ -1,7 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import Image from "next/image";
+import { useRef, useState, type CSSProperties } from "react";
 import { rupiah } from "@/lib/format";
+import { urutKategori } from "@/lib/kategori";
+import { urlFoto } from "@/lib/hitung";
 
 export type Barang = {
   id: number;
@@ -9,7 +12,6 @@ export type Barang = {
   ukuran: string;
   kategori: string;
   satuan: string;
-  jumlah: number;
   harga: number;
   deskripsi: string;
   kapasitas: string;
@@ -47,6 +49,15 @@ function Ikon({ kategori, className = "size-24" }: { kategori: string; className
   return <svg viewBox="0 0 64 64" aria-hidden className={className}>{isi}</svg>;
 }
 
+// Foto bawaan (public/katalog) lewat komponen image Next. Foto unggahan dari /foto tetap <img>.
+// Induknya harus relative dengan rasio tetap, supaya ruangnya sudah dipesan sebelum foto termuat.
+function Foto({ berkas, alt, sizes }: { berkas: string; alt: string; sizes: string }) {
+  const src = urlFoto(berkas);
+  if (src.startsWith("/katalog/")) return <Image src={src} alt={alt} fill sizes={sizes} className="object-cover" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt={alt} loading="lazy" className="absolute inset-0 size-full object-cover" />;
+}
+
 // Label harga berbentuk tag kanvas dengan mata ayam, seperti penanda di tali tenda.
 function LabelHarga({ harga, satuan }: { harga: number; satuan: string }) {
   return (
@@ -65,6 +76,7 @@ function LabelHarga({ harga, satuan }: { harga: number; satuan: string }) {
 
 const judul = (b: Barang) => [b.nama, b.ukuran].filter(Boolean).join(" ");
 const batasi = (n: number, maks: number) => Math.min(Math.max(1, Math.floor(n) || 1), Math.max(1, maks));
+const MAKS_JUMLAH = 999;
 
 export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: string | null; namaUsaha: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -74,12 +86,12 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
   const [jumlah, setJumlah] = useState(1);
   const [hari, setHari] = useState(1);
 
-  // Tenda tampil paling depan, kategori lain mengikuti abjad.
-  const kategori = [...new Set(barang.map((b) => b.kategori))].sort(
-    (a, b) => Number(b.toLowerCase().includes("tenda")) - Number(a.toLowerCase().includes("tenda")) || a.localeCompare(b),
-  );
+  // Saat "Semua", tenda tampil lebih dulu lalu kategori lain menurut abjad. Urutan di dalam kategori tetap dari server.
+  const kategori = urutKategori(barang.map((b) => b.kategori));
   const aktif = kategori.includes(saring) ? saring : "Semua";
-  const tampil = barang.filter((b) => aktif === "Semua" || b.kategori === aktif);
+  const tampil = barang
+    .filter((b) => aktif === "Semua" || b.kategori === aktif)
+    .sort((a, b) => kategori.indexOf(a.kategori) - kategori.indexOf(b.kategori));
 
   function buka(b: Barang) {
     setPilih(b);
@@ -89,7 +101,7 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
     dialog.current?.showModal();
   }
 
-  const j = pilih ? batasi(jumlah, pilih.jumlah) : 1;
+  const j = pilih ? batasi(jumlah, MAKS_JUMLAH) : 1;
   const h = batasi(hari, 365);
   const pesanWa = pilih ? `Halo ${namaUsaha}, saya ingin tanya sewa ${judul(pilih)}, ${j} ${pilih.satuan} untuk ${h} hari.` : "";
 
@@ -100,37 +112,45 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
     <>
       <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Saring kategori">
         {["Semua", ...kategori].map((k) => (
-          <button
-            key={k}
-            type="button"
-            aria-pressed={aktif === k}
-            onClick={() => setSaring(k)}
-            className={`rounded-full border border-b-[3px] px-3.5 py-1 text-sm font-semibold ${aktif === k ? "border-[#0f1829] bg-tinta text-white" : "border-garis bg-white"}`}
-          >
-            {k} <span className="ml-1 font-medium tabular-nums opacity-70">{k === "Semua" ? barang.length : barang.filter((b) => b.kategori === k).length}</span>
+          <button key={k} type="button" aria-pressed={aktif === k} onClick={() => setSaring(k)} className="chip">
+            {k} <span className="font-medium tabular-nums opacity-70">{k === "Semua" ? barang.length : barang.filter((b) => b.kategori === k).length}</span>
           </button>
         ))}
       </div>
 
       <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {tampil.map((b) => (
-          <li key={b.id} className="kartu flex flex-col overflow-hidden">
-            <button type="button" onClick={() => buka(b)} aria-label={`Lihat rincian ${judul(b)}`} className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden bg-[#ebe3d3]">
+        {tampil.map((b, i) => (
+          <li
+            key={b.id}
+            style={{ "--tunda": `${Math.min(i, 8) * 60}ms` } as CSSProperties}
+            className="kartu angkat muncul relative flex flex-col overflow-hidden has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-lampu-gelap"
+          >
+            <div className="slot-foto m-2 mb-0 grid aspect-[4/3] place-items-center rounded-lg">
               {b.foto.length > 0 ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`/foto/${b.foto[0]}`} alt={`Foto ${judul(b)}`} className="size-full object-cover" loading="lazy" />
+                <Foto berkas={b.foto[0]} alt={`Foto ${judul(b)}`} sizes="(min-width: 1152px) 360px, (min-width: 640px) 45vw, 90vw" />
               ) : (
                 <Ikon kategori={b.kategori} />
               )}
-              {b.foto.length > 1 && <span className="absolute bottom-2 right-2 rounded-md bg-tinta/75 px-2 py-0.5 text-[11px] font-semibold text-white">{b.foto.length} foto</span>}
-            </button>
+            </div>
             <div className="flex flex-1 flex-col items-start gap-2 p-4">
               <h3 className="font-judul text-base font-bold">
                 {b.nama} {b.ukuran && <span className="font-isi text-sm font-semibold text-tinta-lembut">{b.ukuran}</span>}
               </h3>
+              {(b.kapasitas || b.foto.length > 1) && (
+                <ul className="flex flex-wrap gap-1.5 text-xs font-semibold" aria-label="Keterangan singkat">
+                  {b.kapasitas && <li className="rounded-md border border-garis border-b-2 bg-[#ebe3d3] px-2 py-0.5">{b.kapasitas}</li>}
+                  {b.foto.length > 1 && <li className="rounded-md border border-garis border-b-2 bg-[#ebe3d3] px-2 py-0.5">{b.foto.length} foto</li>}
+                </ul>
+              )}
               {b.deskripsi && <p className="flex-1 text-sm text-tinta-lembut">{b.deskripsi}</p>}
               <LabelHarga harga={b.harga} satuan={b.satuan} />
-              <button type="button" onClick={() => buka(b)} className="tombol tombol-kecil tombol-tinta mt-1">
+              {/* Satu-satunya perhentian tab di kartu. Lapisan after memperluas area klik ke seluruh kartu. */}
+              <button
+                type="button"
+                onClick={() => buka(b)}
+                aria-label={`Lihat rincian ${judul(b)}`}
+                className="tombol tombol-kecil tombol-tinta mt-1 outline-none after:absolute after:inset-0 after:content-['']"
+              >
                 Lihat rincian
               </button>
             </div>
@@ -143,7 +163,7 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
         aria-labelledby="rincian-judul"
         onClick={(e) => e.target === dialog.current && dialog.current?.close()}
         onClose={() => setPilih(null)}
-        className="m-auto w-full max-w-[860px] rounded-xl bg-kertas p-0 text-tinta shadow-2xl backdrop:bg-tinta/55 max-sm:max-w-[calc(100vw-24px)]"
+        className="m-auto w-full max-w-[860px] rounded-[10px] bg-kertas p-0 text-tinta shadow-2xl backdrop:bg-tinta/55 max-sm:max-w-[calc(100vw-24px)]"
       >
         {pilih && (
           <div className="relative grid md:grid-cols-[1.1fr_1fr]">
@@ -151,10 +171,14 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
               Tutup
             </button>
             <div className="grid content-start gap-2 bg-[#ebe3d3] p-3">
-              <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-lg bg-[#e3dac7]">
+              <div className="slot-foto grid aspect-[4/3] place-items-center rounded-lg">
                 {pilih.foto.length > 0 ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`/foto/${pilih.foto[fotoAktif] ?? pilih.foto[0]}`} alt={`Foto ${judul(pilih)} nomor ${fotoAktif + 1}`} className="size-full object-cover" />
+                  <Foto
+                    key={pilih.foto[fotoAktif] ?? pilih.foto[0]}
+                    berkas={pilih.foto[fotoAktif] ?? pilih.foto[0]}
+                    alt={`Foto ${judul(pilih)} nomor ${fotoAktif + 1}`}
+                    sizes="(min-width: 860px) 460px, 90vw"
+                  />
                 ) : (
                   <Ikon kategori={pilih.kategori} className="size-40" />
                 )}
@@ -168,10 +192,9 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
                       onClick={() => setFotoAktif(i)}
                       aria-label={`Foto ${i + 1}`}
                       aria-current={i === fotoAktif}
-                      className={`h-12 w-16 overflow-hidden rounded-md border-2 ${i === fotoAktif ? "border-terpal" : "border-transparent"}`}
+                      className={`slot-foto h-12 w-16 rounded-md border-2 ${i === fotoAktif ? "border-terpal" : "border-transparent"}`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/foto/${f}`} alt="" className="size-full object-cover" />
+                      <Foto berkas={f} alt="" sizes="64px" />
                     </button>
                   ))}
                 </div>
@@ -186,7 +209,6 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
                     ["Ukuran", pilih.ukuran],
                     ["Kapasitas", pilih.kapasitas],
                     ["Cocok untuk", pilih.cocok],
-                    ["Tersedia", `${pilih.jumlah} ${pilih.satuan}`],
                     ["Harga", pilih.harga > 0 ? `${rupiah(pilih.harga)} per ${pilih.satuan} per hari` : "Lewat penawaran"],
                   ] as const
                 )
@@ -202,7 +224,7 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="label" htmlFor="hitung-jumlah">Jumlah ({pilih.satuan})</label>
-                    <input className="isian" id="hitung-jumlah" type="number" inputMode="numeric" min={1} max={Math.max(1, pilih.jumlah)} value={jumlah} onChange={(e) => setJumlah(Number(e.target.value))} />
+                    <input className="isian" id="hitung-jumlah" type="number" inputMode="numeric" min={1} max={MAKS_JUMLAH} value={jumlah} onChange={(e) => setJumlah(Number(e.target.value))} />
                   </div>
                   <div>
                     <label className="label" htmlFor="hitung-hari">Lama sewa (hari)</label>

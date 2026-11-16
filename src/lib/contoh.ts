@@ -3,6 +3,7 @@
 import { kunciBulan, nomorBerikut, PENGATURAN_BAWAAN } from "./data.ts";
 import { jalankan, transaksi } from "./db.ts";
 import { hariIni } from "./format.ts";
+import { FOTO_ASET_CONTOH } from "./kredit-foto.ts";
 import { geserBulan, tambahHari } from "./hitung.ts";
 import { hashSandi } from "./sandi.ts";
 
@@ -43,6 +44,10 @@ export function isiDataContoh(sandi: string): void {
     const idAset: Record<string, number> = {};
     for (const a of aset) {
       idAset[a[0]] = jalankan("INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...a);
+    }
+    // Foto bawaan dari public/katalog. Menghapusnya dari halaman aset cukup menghapus baris ini.
+    for (const [kode, berkas] of Object.entries(FOTO_ASET_CONTOH)) {
+      jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, ?, 1)", idAset[kode], berkas);
     }
     jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, 2, ?, 'Atap sobek, dijahit ulang')", idAset["TS-55"], tambahHari(hari, -3));
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bacaChecklist, batasBulan, boleh, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, utilisasi, type Pakai } from "../src/lib/hitung.ts";
+import { bacaChecklist, batasBulan, boleh, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, urlFoto, utilisasi, type Pakai } from "../src/lib/hitung.ts";
 
 test("total pesanan mengalikan jumlah, hari, dan harga lalu memotong diskon", () => {
   const baris = [{ jumlah: 4, hari: 2, harga: 900_000 }, { jumlah: 1, hari: 1, harga: 1_500_000 }];
@@ -102,4 +102,12 @@ test("token sesi demo hanya sah dengan kunci yang sama dan sebelum habis", async
   assert.equal(bacaSesiDemo(`${palsu}.${tanda}`, "kunci-a", 1_000), null);
   assert.equal(bacaSesiDemo(isi, "kunci-a", 1_000), null);
   assert.equal(bacaSesiDemo("bukan-token", "kunci-a", 1_000), null);
+});
+
+test("alamat foto: bawaan dari public, unggahan lewat /foto", () => {
+  assert.equal(urlFoto("katalog/02-sarnafil-5x5.jpg"), "/katalog/02-sarnafil-5x5.jpg");
+  assert.equal(urlFoto("0123456789abcdef0123456789abcdef.jpg"), "/foto/0123456789abcdef0123456789abcdef.jpg");
+  // Jalur yang menyelip tidak dianggap foto bawaan.
+  assert.equal(urlFoto("katalog/../rahasia.jpg"), "/foto/katalog/../rahasia.jpg");
+  assert.equal(namaFotoSah("katalog/02-sarnafil-5x5.jpg"), false);
 });

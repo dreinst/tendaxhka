@@ -105,9 +105,13 @@ export async function kirimPermintaan(fd: FormData): Promise<void> {
   const telepon = teks(fd, "telepon", 30);
   if (!nama || !/^[\d+\s()-]{8,30}$/.test(telepon)) gagal("/#kontak", "Isi nama dan nomor telepon yang bisa dihubungi.");
   const tgl = teks(fd, "tanggal", 10);
+  const jenisAcara = teks(fd, "jenis_acara", 100);
+  const tamu = bulat(fd.get("tamu"));
   const rincian = [
     tanggalSah(tgl) ? `Tanggal acara: ${tgl}` : "",
     teks(fd, "lokasi", 200) && `Lokasi: ${teks(fd, "lokasi", 200)}`,
+    jenisAcara && `Jenis acara: ${jenisAcara}`,
+    tamu > 0 && tamu <= 1_000_000 ? `Perkiraan jumlah tamu: ${tamu}` : "",
     teks(fd, "kebutuhan", 1000),
   ].filter(Boolean);
   jalankan(

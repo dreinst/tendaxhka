@@ -1,9 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { Bidang, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { kirimPermintaan } from "@/lib/aksi";
 import { Katalog, type Barang } from "@/komponen/katalog";
 import { fotoPerAset, pengaturan, type Aset } from "@/lib/data";
 import { semua } from "@/lib/db";
+import { urutKategori } from "@/lib/kategori";
 import { nomorWa } from "@/lib/hitung";
 
 // Katalog dan kontak dibaca dari basis data, jadi halaman dirender per permintaan.
@@ -17,6 +20,24 @@ const LANGKAH = [
   ["Tim kami membongkar", "Selesai acara, kami bongkar dan angkut kembali ke gudang."],
 ];
 
+// Deretan bendera kecil di tali, diulang selebar halaman.
+function Bendera() {
+  return (
+    <svg aria-hidden className="block h-[34px] w-full">
+      <defs>
+        <pattern id="bendera" width="120" height="34" patternUnits="userSpaceOnUse">
+          <path d="M0 4Q60 16 120 4" fill="none" stroke="#1d2a44" strokeWidth="1.5" />
+          <path d="M10 6.5h20l-10 20z" fill="#d8412f" />
+          <path d="M50 10h20l-10 20z" fill="#fbf8f1" stroke="#1d2a44" strokeWidth="1" strokeLinejoin="round" />
+          <path d="M90 6.5h20l-10 20z" fill="#f2b544" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="34" fill="url(#bendera)" />
+    </svg>
+  );
+}
+
+// Hiasan kecil di luar area foto.
 function Tenda() {
   return (
     <svg viewBox="0 0 520 330" role="img" aria-label="Ilustrasi tenda acara bergaris merah putih" className="w-full">
@@ -35,6 +56,9 @@ function Tenda() {
     </svg>
   );
 }
+
+// Jeda animasi muncul untuk elemen di hero.
+const tunda = (ms: number) => ({ "--tunda": `${ms}ms` }) as CSSProperties;
 
 // Tautan chat WhatsApp dengan pesan pembuka yang sudah terisi.
 function tautanWa(nomor: string, pesan: string): string {
@@ -56,13 +80,13 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
     ukuran: a.ukuran,
     kategori: a.kategori,
     satuan: a.satuan,
-    jumlah: a.jumlah,
     harga: a.harga,
     deskripsi: a.deskripsi,
     kapasitas: a.kapasitas,
     cocok: a.cocok,
     foto: foto.get(a.id) ?? [],
   }));
+  const kategori = urutKategori(aset.map((a) => a.kategori));
   return (
     <>
       <a href="#utama" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">
@@ -92,14 +116,17 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
           <p aria-hidden className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 select-none whitespace-nowrap font-judul text-[22vw] font-bold leading-none text-tinta/[0.045]">
             TENDA
           </p>
-          <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 py-12 md:grid-cols-2 md:py-20">
+          <div className="relative"><Bendera /></div>
+          <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-8 md:grid-cols-2 md:pb-20 md:pt-10">
             <div>
-              <h1 className="text-3xl font-bold leading-tight md:text-5xl md:leading-[1.1]">Sewa tenda untuk acara Anda, kami yang pasang dan bongkar.</h1>
-              <p className="mt-5 max-w-md text-base text-tinta-lembut md:text-lg">
+              <h1 style={tunda(0)} className="muncul text-3xl font-bold leading-tight md:text-5xl md:leading-[1.15]">
+                Sewa tenda untuk acara Anda, kami yang <span className="stabilo">pasang dan bongkar</span>.
+              </h1>
+              <p style={tunda(120)} className="muncul mt-5 max-w-md text-base text-tinta-lembut md:text-lg">
                 Tenda dan perlengkapannya keluar dari gudang kami sendiri, diantar dan dipasang oleh tim teknis kami. Kirim tanggal dan lokasi
                 acara, kami cek ketersediaannya lalu mengirim penawaran.
               </p>
-              <div className="mt-7 flex flex-wrap gap-3">
+              <div style={tunda(240)} className="muncul mt-7 flex flex-wrap gap-3">
                 <a href="#kontak" className="tombol tombol-utama px-5 text-base">Minta penawaran</a>
                 {wa && (
                   <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol px-5 text-base">
@@ -108,16 +135,48 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                 )}
                 <a href="#katalog" className="tombol px-5 text-base">Lihat katalog</a>
               </div>
+              <p style={tunda(360)} className="muncul stiker mt-8 max-w-[15rem]">Diantar, dipasang, dibongkar tim kami</p>
             </div>
-            <div className="ceruk p-5 md:p-8"><Tenda /></div>
+            <div style={tunda(180)} className="muncul relative mx-auto w-full max-w-lg px-2 pb-6 md:max-w-none md:pb-16">
+              <figure className="foto-cetak">
+                <span aria-hidden className="selotip left-3 -rotate-6" />
+                <span aria-hidden className="selotip right-3 rotate-6" />
+                <div className="slot-foto rounded-md">
+                  <Image
+                    src="/katalog/11-hero.jpg"
+                    alt="Atap tenda putih besar di bawah langit biru, foto ilustrasi"
+                    width={1800}
+                    height={1200}
+                    sizes="(min-width: 1152px) 540px, (min-width: 768px) 45vw, 90vw"
+                    preload
+                    className="block h-auto w-full"
+                  />
+                </div>
+                <figcaption className="pb-1 pt-3 text-center text-xs font-semibold text-tinta-lembut">Foto ilustrasi</figcaption>
+              </figure>
+              <div aria-hidden className="absolute bottom-0 left-0 hidden w-24 md:block"><Tenda /></div>
+            </div>
           </div>
           <div className="lisplang" aria-hidden />
         </section>
+
+        {kategori.length > 0 && (
+          <nav aria-label="Kategori barang" className="border-b border-garis bg-kertas">
+            <div className="garis-atap" aria-hidden />
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-4">
+              <span className="mr-1 text-sm font-semibold text-tinta-lembut">Yang bisa disewa</span>
+              {kategori.map((k) => (
+                <a key={k} href="#katalog" className="chip">{k}</a>
+              ))}
+            </div>
+          </nav>
+        )}
 
         <section id="katalog" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14">
           <h2 className="text-2xl font-bold md:text-3xl">Katalog sewa</h2>
           <p className="mt-2 max-w-xl text-tinta-lembut">Harga per hari, belum termasuk antar, pasang, dan bongkar. Buka rincian untuk melihat foto dan menghitung perkiraan biaya.</p>
           <Katalog barang={barang} wa={wa} namaUsaha={s.nama_usaha} />
+          <p className="mt-6 text-xs text-tinta-lembut">Foto di katalog adalah foto ilustrasi, wujud barang bisa berbeda.</p>
         </section>
 
         <section id="cara-sewa" className="scroll-mt-20 bg-tinta text-white">
@@ -125,7 +184,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
             <h2 className="text-2xl font-bold md:text-3xl">Cara sewa</h2>
             <ol className="mt-8 grid gap-4 md:grid-cols-5">
               {LANGKAH.map(([judul, isi], i) => (
-                <li key={judul} className="rounded-[10px] border border-white/15 border-b-4 border-b-black/40 bg-white/[0.07] p-4 shadow-[inset_0_1px_0_rgb(255_255_255/0.12)]">
+                <li key={judul} className="tali-langkah rounded-[10px] border border-white/15 border-b-4 border-b-black/40 bg-white/[0.07] p-4 shadow-[inset_0_1px_0_rgb(255_255_255/0.12)]">
                   <span className="grid size-9 place-items-center rounded-lg border-b-4 border-lampu-gelap bg-lampu font-judul text-sm font-bold text-tinta">{i + 1}</span>
                   <h3 className="mt-3 font-isi text-base font-bold">{judul}</h3>
                   <p className="mt-1 text-sm text-white/75">{isi}</p>
@@ -168,8 +227,14 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
               <Bidang label="Lokasi acara" id="lokasi" className="sm:col-span-2">
                 <input className="isian" id="lokasi" name="lokasi" maxLength={200} />
               </Bidang>
+              <Bidang label="Jenis acara (opsional)" id="jenis_acara">
+                <input className="isian" id="jenis_acara" name="jenis_acara" maxLength={100} placeholder="Resepsi, wisuda, pameran" />
+              </Bidang>
+              <Bidang label="Perkiraan jumlah tamu (opsional)" id="tamu">
+                <input className="isian" id="tamu" name="tamu" type="number" inputMode="numeric" min={1} max={100000} />
+              </Bidang>
               <Bidang label="Kebutuhan" id="kebutuhan" className="sm:col-span-2">
-                <textarea className="isian" id="kebutuhan" name="kebutuhan" rows={4} maxLength={1000} placeholder="Jenis acara, jumlah tamu, tenda yang diminati" />
+                <textarea className="isian" id="kebutuhan" name="kebutuhan" rows={4} maxLength={1000} placeholder="Tenda atau perlengkapan yang diminati" />
               </Bidang>
               <div className="hidden" aria-hidden>
                 <label htmlFor="situs">Jangan diisi</label>
@@ -185,6 +250,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-tinta-lembut">
           <p>{s.nama_usaha}</p>
           {s.telepon && <p>{s.telepon}</p>}
+          <Link href="/kredit-foto" className="underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
         </div>
       </footer>
 

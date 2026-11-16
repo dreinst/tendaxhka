@@ -164,3 +164,10 @@ export function tampakJpeg(b: Uint8Array): boolean {
 
 export const MAKS_FOTO_PER_ASET = 8;
 export const MAKS_UKURAN_FOTO = 800_000;
+
+// Alamat gambar untuk nilai `berkas` di tabel aset_foto. Foto bawaan berawalan "katalog/" dan dilayani dari folder
+// public. Foto unggahan (nama heksadesimal) dilayani lewat /foto/[nama]. Nama bawaan dibatasi huruf kecil, angka,
+// dan tanda hubung supaya tidak bisa menyelipkan jalur lain.
+export function urlFoto(berkas: string): string {
+  return /^katalog\/[a-z0-9-]+\.jpg$/.test(berkas) ? `/${berkas}` : `/foto/${berkas}`;
+}

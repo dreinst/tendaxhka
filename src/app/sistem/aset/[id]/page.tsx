@@ -8,7 +8,7 @@ import { wajib } from "@/lib/auth";
 import { fotoAset, type Aset } from "@/lib/data";
 import { satu, semua } from "@/lib/db";
 import { hariIni, rupiah, tanggal } from "@/lib/format";
-import { boleh, MAKS_FOTO_PER_ASET } from "@/lib/hitung";
+import { boleh, MAKS_FOTO_PER_ASET, urlFoto } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Aset" };
 
@@ -46,7 +46,7 @@ export default async function DetailAset({ params, searchParams }: { params: Pro
               <li key={f.id} className="overflow-hidden rounded-[10px] border border-garis bg-white">
                 <div className="relative aspect-[4/3] bg-[#ebe3d3]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/foto/${f.berkas}`} alt={`Foto ${i + 1} ${a.nama} ${a.ukuran}`} className="size-full object-cover" loading="lazy" />
+                  <img src={urlFoto(f.berkas)} alt={`Foto ${i + 1} ${a.nama} ${a.ukuran}`} className="size-full object-cover" loading="lazy" />
                   {i === 0 && <span className="lencana absolute left-2 top-2 bg-lampu text-tinta">Sampul</span>}
                 </div>
                 {tulis && (
