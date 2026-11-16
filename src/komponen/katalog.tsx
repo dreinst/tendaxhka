@@ -47,9 +47,29 @@ const judul = (b: Barang) => [b.nama, b.ukuran].filter(Boolean).join(" ");
 const batasi = (n: number, maks: number) => Math.min(Math.max(1, Math.floor(n) || 1), Math.max(1, maks));
 const MAKS_JUMLAH = 999;
 
-export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: string | null; namaUsaha: string }) {
+// Ragam "ringkas" dipakai di beranda: beberapa barang pertama tanpa saringan, dengan tautan ke katalog lengkap.
+// Ragam "penuh" dipakai di halaman /produk dan menjadi judul utama halaman itu.
+const JUMLAH_RINGKAS = 7;
+
+export function Katalog({
+  barang,
+  wa,
+  namaUsaha,
+  ragam = "penuh",
+  awal,
+  tautanKontak = "#kontak",
+}: {
+  barang: Barang[];
+  wa: string | null;
+  namaUsaha: string;
+  ragam?: "penuh" | "ringkas";
+  awal?: string;
+  tautanKontak?: string;
+}) {
+  const ringkas = ragam === "ringkas";
+  const Judul = ringkas ? "h2" : "h1";
   const dialog = useRef<HTMLDialogElement>(null);
-  const [saring, setSaring] = useState("Semua");
+  const [saring, setSaring] = useState(awal || "Semua");
   const [pilih, setPilih] = useState<Barang | null>(null);
   const [fotoAktif, setFotoAktif] = useState(0);
   const [jumlah, setJumlah] = useState(1);
@@ -60,7 +80,8 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
   const aktif = kategori.includes(saring) ? saring : "Semua";
   const tampil = barang
     .filter((b) => aktif === "Semua" || b.kategori === aktif)
-    .sort((a, b) => kategori.indexOf(a.kategori) - kategori.indexOf(b.kategori));
+    .sort((a, b) => kategori.indexOf(a.kategori) - kategori.indexOf(b.kategori))
+    .slice(0, ringkas ? JUMLAH_RINGKAS : undefined);
 
   function buka(b: Barang) {
     setPilih(b);
@@ -81,16 +102,20 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
     <>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Katalog sewa</h2>
-          <p className="mt-1 max-w-[22rem] text-sm text-tinta-lembut">Harga per hari, belum termasuk antar, pasang, dan bongkar. Buka rincian untuk melihat foto dan menghitung perkiraan biaya.</p>
+          <Judul className="text-2xl font-bold">Katalog produk</Judul>
+          <p className="mt-1 max-w-[26rem] text-sm text-tinta-lembut">Harga per hari, belum termasuk antar, pasang, dan bongkar. Buka rincian untuk melihat foto dan menghitung perkiraan biaya.</p>
         </div>
-        <div className="flex flex-wrap gap-1.5 lg:justify-end" role="group" aria-label="Saring kategori">
-          {["Semua", ...kategori].map((k) => (
-            <button key={k} type="button" aria-pressed={aktif === k} onClick={() => setSaring(k)} className="chip">
-              {k} <span className="font-medium tabular-nums opacity-70">{k === "Semua" ? barang.length : barang.filter((b) => b.kategori === k).length}</span>
-            </button>
-          ))}
-        </div>
+        {ringkas ? (
+          <a href="/produk" className="tombol self-start lg:self-auto">Lihat semua {barang.length} produk</a>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 lg:justify-end" role="group" aria-label="Saring kategori">
+            {["Semua", ...kategori].map((k) => (
+              <button key={k} type="button" aria-pressed={aktif === k} onClick={() => setSaring(k)} className="chip">
+                {k} <span className="font-medium tabular-nums opacity-70">{k === "Semua" ? barang.length : barang.filter((b) => b.kategori === k).length}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Flex dipakai supaya kartu ajakan di akhir bisa mengisi sisa baris terakhir, berapa pun jumlah barangnya. */}
@@ -126,9 +151,19 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
           </li>
         ))}
         <li className="flex grow basis-[calc((100%-0.75rem)/2)] md:basis-[calc((100%-2rem)/3)] xl:basis-[calc((100%-3rem)/4)] flex-col justify-center gap-2 rounded-md bg-tinta p-4 text-white md:p-5">
-          <p className="font-judul text-lg font-semibold leading-snug">Butuh barang yang tidak ada di daftar?</p>
-          <p className="text-sm text-white/80">Tulis kebutuhannya di formulir. Kami cek ketersediaannya lalu memasukkannya ke penawaran.</p>
-          <a href="#kontak" className="tombol tombol-utama mt-1 self-start">Minta penawaran</a>
+          {ringkas ? (
+            <>
+              <p className="font-judul text-lg font-semibold leading-snug">Ada {barang.length} produk di katalog</p>
+              <p className="text-sm text-white/80">Lihat semuanya per kategori, lengkap dengan foto, ukuran, dan harga sewa per hari.</p>
+              <a href="/produk" className="tombol mt-1 self-start">Buka katalog produk</a>
+            </>
+          ) : (
+            <>
+              <p className="font-judul text-lg font-semibold leading-snug">Butuh barang yang tidak ada di daftar?</p>
+              <p className="text-sm text-white/80">Tulis kebutuhannya di formulir. Kami cek ketersediaannya lalu memasukkannya ke penawaran.</p>
+              <a href={tautanKontak} className="tombol tombol-utama mt-1 self-start">Minta penawaran</a>
+            </>
+          )}
         </li>
       </ul>
 
@@ -218,7 +253,7 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
                     Tanya lewat WhatsApp
                   </a>
                 ) : (
-                  <a href="#kontak" onClick={() => dialog.current?.close()} className="tombol tombol-utama">
+                  <a href={tautanKontak} onClick={() => dialog.current?.close()} className="tombol tombol-utama">
                     Minta penawaran
                   </a>
                 )}

@@ -2,11 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Bidang, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { kirimPermintaan } from "@/lib/aksi";
-import { Katalog, type Barang } from "@/komponen/katalog";
-import { fotoPerAset, pengaturan, type Aset } from "@/lib/data";
-import { semua } from "@/lib/db";
+import { Katalog } from "@/komponen/katalog";
+import { KakiSitus, KepalaSitus, tautanWa } from "@/komponen/situs";
+import { barangKatalog, identitasSitus } from "@/lib/katalog-data";
 import { urutKategori } from "@/lib/kategori";
-import { nomorWa } from "@/lib/hitung";
 
 // Katalog dan kontak dibaca dari basis data, jadi halaman dirender per permintaan.
 export const dynamic = "force-dynamic";
@@ -19,62 +18,20 @@ const LANGKAH = [
   ["Tim kami membongkar", "Selesai acara, kami bongkar dan angkut kembali ke gudang."],
 ];
 
-// Tautan chat WhatsApp dengan pesan pembuka yang sudah terisi.
-function tautanWa(nomor: string, pesan: string): string {
-  return `https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`;
-}
-
 export default async function Beranda({ searchParams }: { searchParams: Cari }) {
   const sp = await searchParams;
-  const s = pengaturan();
-  // Nomor WhatsApp khusus dipakai lebih dulu, lalu nomor telepon. Tanpa nomor seluler yang sah, tombol tidak tampil.
-  const wa = nomorWa(s.whatsapp) ?? nomorWa(s.telepon);
-  const sapa = `Halo ${s.nama_usaha}, saya ingin tanya sewa tenda.`;
-  const aset = semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND tampil_web = 1 ORDER BY kategori, harga DESC");
-  const foto = fotoPerAset();
-  // Hanya kolom yang memang untuk pengunjung yang dikirim ke browser.
-  const barang: Barang[] = aset.map((a) => ({
-    id: a.id,
-    nama: a.nama,
-    ukuran: a.ukuran,
-    kategori: a.kategori,
-    satuan: a.satuan,
-    harga: a.harga,
-    deskripsi: a.deskripsi,
-    kapasitas: a.kapasitas,
-    cocok: a.cocok,
-    foto: foto.get(a.id) ?? [],
-  }));
-  const kategori = urutKategori(aset.map((a) => a.kategori));
+  const { s, wa, sapa } = identitasSitus();
+  const barang = barangKatalog();
+  const kategori = urutKategori(barang.map((b) => b.kategori));
   const fakta: [string, string][] = [
-    [String(aset.length), "jenis barang di katalog"],
+    [String(barang.length), "jenis barang di katalog"],
     [String(kategori.length), "kategori, dari tenda sampai perlengkapan"],
     ["Diantar, dipasang, dibongkar", "oleh tim kami"],
     ["Penawaran", "sesudah cek ketersediaan tanggal"],
   ];
   return (
     <>
-      <a href="#utama" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2">
-        Langsung ke isi
-      </a>
-      <header className="sticky top-0 z-40 border-b border-garis bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-2.5">
-          <Link href="/" className="inline-flex min-h-10 items-center font-judul text-base font-bold tracking-tight">{s.nama_usaha}</Link>
-          <nav aria-label="Utama" className="hidden gap-6 text-sm font-medium md:flex">
-            <a href="#katalog" className="inline-flex min-h-10 items-center hover:text-terpal-gelap">Katalog</a>
-            <a href="#cara-sewa" className="inline-flex min-h-10 items-center hover:text-terpal-gelap">Cara sewa</a>
-            <a href="#kontak" className="inline-flex min-h-10 items-center hover:text-terpal-gelap">Kontak</a>
-          </nav>
-          <div className="flex gap-2">
-            {wa && (
-              <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol hidden sm:inline-flex">
-                Chat WhatsApp
-              </a>
-            )}
-            <a href="#kontak" className="tombol tombol-utama">Minta penawaran</a>
-          </div>
-        </div>
-      </header>
+      <KepalaSitus nama={s.nama_usaha} wa={wa} sapa={sapa} />
 
       <main id="utama">
         <section className="relative h-[420px] overflow-hidden bg-tinta md:h-[460px]">
@@ -99,7 +56,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
             </p>
             <div className="mt-6 flex flex-wrap gap-2.5">
               <a href="#kontak" className="tombol tombol-utama px-5">Minta penawaran</a>
-              <a href="#katalog" className="tombol px-5">Lihat katalog</a>
+              <Link href="/produk" className="tombol px-5">Katalog produk</Link>
               {wa && (
                 <a href={tautanWa(wa, sapa)} target="_blank" rel="noopener noreferrer" className="tombol px-5">
                   Chat WhatsApp
@@ -122,7 +79,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
         </div>
 
         <section id="katalog" className="mx-auto max-w-7xl scroll-mt-14 px-4 py-7 md:py-10">
-          <Katalog barang={barang} wa={wa} namaUsaha={s.nama_usaha} />
+          <Katalog barang={barang} wa={wa} namaUsaha={s.nama_usaha} ragam="ringkas" />
           <p className="mt-4 text-xs text-tinta-lembut">Foto di katalog adalah foto ilustrasi, wujud barang bisa berbeda.</p>
         </section>
 
@@ -202,13 +159,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
         </section>
       </main>
 
-      <footer className="border-t border-garis">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2 text-[13px] text-tinta-lembut">
-          <p>{s.nama_usaha}</p>
-          {s.telepon && <p>{s.telepon}</p>}
-          <Link href="/kredit-foto" className="inline-flex min-h-10 items-center underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
-        </div>
-      </footer>
+      <KakiSitus nama={s.nama_usaha} telepon={s.telepon} />
 
       {wa && (
         <a

@@ -13,7 +13,7 @@ const MENU: { href: string; teks: string; hak?: Hak }[] = [
   { href: "/sistem/pesanan", teks: "Pesanan", hak: "pesanan.lihat" },
   { href: "/sistem/kalender", teks: "Kalender aset", hak: "aset.lihat" },
   { href: "/sistem/jadwal", teks: "Jadwal kru", hak: "jadwal.lihat" },
-  { href: "/sistem/aset", teks: "Aset", hak: "aset.lihat" },
+  { href: "/sistem/aset", teks: "Aset dan katalog", hak: "aset.lihat" },
   { href: "/sistem/keuangan", teks: "Keuangan", hak: "keuangan.lihat" },
   { href: "/sistem/bagi-hasil", teks: "Bagi hasil", hak: "keuangan.lihat" },
   { href: "/sistem/log", teks: "Jejak audit", hak: "keuangan.lihat" },
