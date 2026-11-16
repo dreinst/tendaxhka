@@ -86,7 +86,8 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
             sizes="100vw"
             className="object-cover"
           />
-          <div aria-hidden className="absolute inset-0 bg-tinta/75" />
+          {/* Di HP teks menutup seluruh lebar, jadi lapisannya rata. Di layar lebar foto dibiarkan terang di sisi kanan. */}
+          <div aria-hidden className="absolute inset-0 bg-tinta/70 md:bg-transparent md:bg-linear-to-r md:from-tinta/90 md:via-tinta/65 md:to-tinta/15" />
           <div className="relative mx-auto flex h-full max-w-7xl flex-col justify-center px-4">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/80">Rental tenda dan perlengkapan acara</p>
             <h1 className="mt-3 max-w-2xl text-[30px] font-bold text-white md:text-[46px]">
@@ -149,7 +150,16 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                 Lebih cepat lewat WhatsApp
               </a>
             )}
-            <dl className="mt-5 space-y-1.5 border-t border-garis pt-4 text-sm">
+            <div className="mt-5 border-t border-garis pt-4 text-sm">
+              <p className="font-semibold">Supaya penawaran cepat keluar, siapkan:</p>
+              <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-tinta-lembut lg:grid-cols-1">
+                <li>Tanggal pasang dan tanggal acara</li>
+                <li>Alamat lokasi dan jenis permukaannya</li>
+                <li>Perkiraan jumlah tamu</li>
+                <li>Jenis acara dan barang yang diminati</li>
+              </ul>
+            </div>
+            <dl className="mt-4 space-y-1.5 text-sm">
               {s.telepon && <div><dt className="inline font-semibold">Telepon: </dt><dd className="inline">{s.telepon}</dd></div>}
               {s.email && <div><dt className="inline font-semibold">Email: </dt><dd className="inline">{s.email}</dd></div>}
               {s.alamat && <div><dt className="inline font-semibold">Gudang: </dt><dd className="inline">{s.alamat}</dd></div>}

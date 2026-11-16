@@ -93,11 +93,12 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
         </div>
       </div>
 
-      <ul className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+      {/* Flex dipakai supaya kartu ajakan di akhir bisa mengisi sisa baris terakhir, berapa pun jumlah barangnya. */}
+      <ul className="mt-4 flex flex-wrap gap-3 md:gap-4">
         {tampil.map((b) => (
           <li
             key={b.id}
-            className="kartu relative flex flex-col overflow-hidden hover:border-[#b9b5ac] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-tinta"
+            className="kartu relative flex shrink-0 grow-0 basis-[calc((100%-0.75rem)/2)] md:basis-[calc((100%-2rem)/3)] xl:basis-[calc((100%-3rem)/4)] flex-col overflow-hidden hover:border-[#b9b5ac] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-tinta"
           >
             <div className="relative grid aspect-[4/3] place-items-center overflow-hidden border-b border-garis bg-[#ece9e3]">
               {b.foto.length > 0 ? (
@@ -124,6 +125,11 @@ export function Katalog({ barang, wa, namaUsaha }: { barang: Barang[]; wa: strin
             </div>
           </li>
         ))}
+        <li className="flex grow basis-[calc((100%-0.75rem)/2)] md:basis-[calc((100%-2rem)/3)] xl:basis-[calc((100%-3rem)/4)] flex-col justify-center gap-2 rounded-md bg-tinta p-4 text-white md:p-5">
+          <p className="font-judul text-lg font-semibold leading-snug">Butuh barang yang tidak ada di daftar?</p>
+          <p className="text-sm text-white/80">Tulis kebutuhannya di formulir. Kami cek ketersediaannya lalu memasukkannya ke penawaran.</p>
+          <a href="#kontak" className="tombol tombol-utama mt-1 self-start">Minta penawaran</a>
+        </li>
       </ul>
 
       <dialog
