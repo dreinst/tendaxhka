@@ -67,7 +67,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
           <p className="absolute bottom-2 right-3 text-xs text-white/80">Foto ilustrasi</p>
         </section>
 
-        <div className="border-b border-garis">
+        <div className="border-b border-garis bg-kertas">
           <dl className="mx-auto grid max-w-7xl grid-cols-2 md:grid-cols-4 [&>div]:border-garis [&>div]:px-4 [&>div]:py-3 [&>div:nth-child(odd)]:border-r [&>div:nth-child(-n+2)]:border-b md:[&>div]:border-b-0 md:[&>div]:border-r md:[&>div:last-child]:border-r-0 md:[&>div:nth-child(-n+2)]:border-b-0">
             {fakta.map(([angka, ket]) => (
               <div key={ket}>
@@ -83,15 +83,16 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
           <p className="mt-4 text-xs text-tinta-lembut">Foto di katalog adalah foto ilustrasi, wujud barang bisa berbeda.</p>
         </section>
 
-        <section id="cara-sewa" className="scroll-mt-14 border-y border-garis bg-kertas">
+        {/* Blok gelap penuh memberi jeda warna di tengah halaman. */}
+        <section id="cara-sewa" className="scroll-mt-14 bg-tinta text-white">
           <div className="mx-auto max-w-7xl px-4 py-7 md:py-10">
             <h2 className="text-2xl font-bold">Cara sewa</h2>
-            <ol className="mt-4 grid gap-px border border-garis bg-garis md:grid-cols-2 lg:grid-cols-5">
+            <ol className="mt-4 grid gap-px border border-white/15 bg-white/15 md:grid-cols-2 lg:grid-cols-5">
               {LANGKAH.map(([judul, isi], i) => (
-                <li key={judul} className="bg-white p-4">
-                  <span className="text-sm font-bold tabular-nums text-terpal">{String(i + 1).padStart(2, "0")}</span>
+                <li key={judul} className="bg-tinta p-4">
+                  <span className="text-sm font-bold tabular-nums text-white/60">{String(i + 1).padStart(2, "0")}</span>
                   <h3 className="mt-1 text-base font-semibold">{judul}</h3>
-                  <p className="mt-1 text-[13px] leading-snug text-tinta-lembut">{isi}</p>
+                  <p className="mt-1 text-[13px] leading-snug text-white/75">{isi}</p>
                 </li>
               ))}
             </ol>

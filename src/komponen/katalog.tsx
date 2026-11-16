@@ -37,7 +37,7 @@ function Harga({ harga, satuan }: { harga: number; satuan: string }) {
   if (harga <= 0) return <p className="text-sm font-semibold">Harga lewat penawaran</p>;
   return (
     <p className="tabular-nums">
-      <span className="text-base font-bold">{rupiah(harga)}</span>{" "}
+      <span className="text-base font-bold text-terpal-gelap">{rupiah(harga)}</span>{" "}
       <span className="text-xs text-tinta-lembut">per {satuan} per hari</span>
     </p>
   );

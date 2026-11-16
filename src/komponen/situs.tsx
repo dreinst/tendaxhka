@@ -12,7 +12,7 @@ export function KepalaSitus({ nama, wa, sapa, aktif }: { nama: string; wa: strin
       <a href="#utama" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2">
         Langsung ke isi
       </a>
-      <header className="sticky top-0 z-40 border-b border-garis bg-white">
+      <header className="sticky top-0 z-40 border-b border-garis bg-kanvas">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5">
           <Link href="/" className="inline-flex min-h-10 items-center font-judul text-base font-bold tracking-tight">{nama}</Link>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -40,11 +40,11 @@ export function KepalaSitus({ nama, wa, sapa, aktif }: { nama: string; wa: strin
 
 export function KakiSitus({ nama, telepon }: { nama: string; telepon: string }) {
   return (
-    <footer className="border-t border-garis">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2 text-[13px] text-tinta-lembut">
+    <footer className="bg-tinta">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2 text-[13px] text-white/75">
         <p>{nama}</p>
         {telepon && <p>{telepon}</p>}
-        <Link href="/kredit-foto" className="inline-flex min-h-10 items-center underline underline-offset-2 hover:text-tinta">Kredit foto</Link>
+        <Link href="/kredit-foto" className="inline-flex min-h-10 items-center underline underline-offset-2 hover:text-white">Kredit foto</Link>
       </div>
     </footer>
   );
