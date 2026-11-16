@@ -45,6 +45,23 @@ export function isiDataContoh(sandi: string): void {
     for (const a of aset) {
       idAset[a[0]] = jalankan("INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...a);
     }
+    // Keterangan tambahan untuk rincian barang di website: [kapasitas, cocok untuk]. Sama seperti data lain di
+    // sini, angkanya contoh dan perlu diganti dengan ukuran yang sebenarnya.
+    const rincian: Record<string, [string, string]> = {
+      "TS-33": ["1 stan atau 4 kursi dengan meja", "stan bazar, meja registrasi, pos jaga"],
+      "TS-55": ["sekitar 30 kursi", "bazar, pameran, tenda tamu"],
+      "TR-10": ["sekitar 50 kursi per modul", "resepsi, pameran, wisuda"],
+      "TD-46": ["sekitar 24 kursi", "hajatan, syukuran"],
+      "LT-01": ["", "lantai tenda, panggung rendah"],
+      "KS-01": ["", "resepsi, seminar"],
+      "MJ-01": ["8 sampai 10 orang", "resepsi, jamuan"],
+      "AC-05": ["", "tenda tertutup"],
+      "KP-01": ["", "tenda terbuka, area antre"],
+      "LP-01": ["", "acara malam"],
+    };
+    for (const [kode, [kapasitas, cocok]] of Object.entries(rincian)) {
+      jalankan("UPDATE aset SET kapasitas = ?, cocok = ? WHERE id = ?", kapasitas, cocok, idAset[kode]);
+    }
     // Foto bawaan dari public/katalog. Menghapusnya dari halaman aset cukup menghapus baris ini.
     for (const [kode, berkas] of Object.entries(FOTO_ASET_CONTOH)) {
       jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, ?, 1)", idAset[kode], berkas);

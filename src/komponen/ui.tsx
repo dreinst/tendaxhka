@@ -7,6 +7,17 @@ export function nilai(v: string | string[] | undefined): string {
   return (Array.isArray(v) ? v[0] : v) ?? "";
 }
 
+// Label kecil di atas judul bagian. Garis di depannya elemen sungguhan (tidak memakai ::before) supaya ikut
+// terbawa saat halaman diimpor ke Figma. Versi "terang" dipakai di atas blok teal.
+export function LabelAtas({ children, terang }: { children: ReactNode; terang?: boolean }) {
+  return (
+    <p className={`flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.12em] ${terang ? "text-kunyit" : "text-terpal-gelap"}`}>
+      <span aria-hidden className="h-0.5 w-5 shrink-0 bg-current" />
+      {children}
+    </p>
+  );
+}
+
 export function Pesan({ galat, ok }: { galat?: string; ok?: string }) {
   if (galat) {
     return (

@@ -17,8 +17,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id" className={`${judul.variable} ${isi.variable}`}>
       <body className="min-h-screen antialiased">
         {process.env.MODE_DEMO === "1" && (
-          <p role="note" className="tanpa-cetak bg-lampu px-4 py-1.5 text-center text-xs font-semibold text-tinta">
-            Versi demo. Semua data di sini contoh dan bisa kembali ke awal sewaktu-waktu. Jangan isi data asli.
+          <p role="note" className="tanpa-cetak bg-tinta-pekat px-4 py-1.5 text-center text-xs text-white/75">
+            Versi demo dengan data contoh.<span className="max-sm:hidden"> Isinya bisa kembali ke awal sewaktu-waktu.</span> Jangan isi data asli.
           </p>
         )}
         {children}

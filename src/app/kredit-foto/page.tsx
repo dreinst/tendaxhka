@@ -1,37 +1,50 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { KakiSitus, KepalaSitus } from "@/komponen/situs";
+import { identitasSitus } from "@/lib/katalog-data";
 import { KREDIT_FOTO } from "@/lib/kredit-foto";
 
 export const metadata: Metadata = { title: "Kredit foto" };
 
+// Kepala dan kaki halaman membaca identitas usaha dari basis data.
+export const dynamic = "force-dynamic";
+
 export default function KreditFoto() {
+  const { s, wa, sapa } = identitasSitus();
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12">
-      <Link href="/" className="inline-flex min-h-10 items-center text-sm font-semibold underline underline-offset-2">Kembali ke beranda</Link>
-      <h1 className="mt-4 text-2xl font-bold md:text-3xl">Kredit foto</h1>
-      <p className="mt-3 text-tinta-lembut">
-        Foto di website ini adalah foto ilustrasi dari fotografer lain, bukan dokumentasi acara Tenda Indonesia. Wujud barang yang disewakan bisa berbeda.
-        Terima kasih kepada para pembuat foto di bawah.
-      </p>
-      <ul className="mt-8 grid gap-3">
-        {KREDIT_FOTO.map((f) => (
-          <li key={f.berkas} className="kartu p-4">
-            <h2 className="font-isi text-base font-bold">{f.barang}</h2>
-            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="font-semibold text-tinta-lembut">Pembuat</dt>
-              <dd>{f.pembuat}</dd>
-              <dt className="font-semibold text-tinta-lembut">Lisensi</dt>
-              <dd>{f.lisensi}</dd>
-              <dt className="font-semibold text-tinta-lembut">Sumber</dt>
-              <dd className="min-w-0 break-words">
-                <a href={f.halaman} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-                  {f.halaman}
-                </a>
-              </dd>
-            </dl>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <>
+      <KepalaSitus nama={s.nama_usaha} wa={wa} sapa={sapa} />
+      <main id="utama">
+        <div className="border-b border-garis bg-kertas">
+          <div className="mx-auto max-w-7xl px-4 py-7 md:py-9">
+            <nav aria-label="Jejak halaman" className="text-[13px] text-tinta-lembut">
+              <Link href="/" className="inline-flex min-h-10 items-center underline-offset-4 hover:underline">Beranda</Link>
+              <span aria-hidden className="mx-2">/</span>
+              <span aria-current="page" className="font-semibold text-tinta">Kredit foto</span>
+            </nav>
+            <h1 className="mt-1 text-[30px] font-bold tracking-[-0.03em] md:text-[40px]">Kredit foto</h1>
+            <p className="mt-2 max-w-2xl text-sm text-tinta-lembut md:text-[15px]">
+              Foto di website ini adalah foto ilustrasi karya fotografer lain. Semuanya dipakai sebagai gambaran, dan wujud barang yang disewakan
+              bisa berbeda. Terima kasih kepada para pembuat foto di bawah.
+            </p>
+          </div>
+        </div>
+        <ul className="mx-auto grid max-w-7xl gap-3 px-4 py-7 md:grid-cols-2 md:py-9 lg:grid-cols-3">
+          {KREDIT_FOTO.map((f) => (
+            <li key={f.berkas} className="kartu p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-tinta-lembut">{f.barang}</p>
+              <h2 className="mt-2 font-isi text-base font-semibold tracking-normal">Foto oleh {f.pembuat}</h2>
+              <p className="mt-1 text-sm text-tinta-lembut">
+                <a href={f.tautanLisensi} target="_blank" rel="noopener noreferrer" className="font-medium text-tinta underline underline-offset-4">{f.lisensi}</a>. {f.ubahan}.
+              </p>
+              <a href={f.halaman} target="_blank" rel="noopener noreferrer" aria-label={`Halaman sumber foto: ${f.barang}`} className="mt-1 inline-flex min-h-10 items-center text-sm font-medium text-terpal-gelap underline underline-offset-4">
+                Halaman sumber
+              </a>
+            </li>
+          ))}
+        </ul>
+      </main>
+      <KakiSitus nama={s.nama_usaha} telepon={s.telepon} email={s.email} alamat={s.alamat} />
+    </>
   );
 }
