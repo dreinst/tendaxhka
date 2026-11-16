@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { Pengguna } from "./data.ts";
 import { jalankan, MODE_DEMO, satu } from "./db.ts";
 import { boleh, type Hak } from "./hitung.ts";
-import { bacaSesiDemo, hashToken, tokenBaru, tokenSesiDemo } from "./sandi.ts";
+import { bacaSesiDemo, hashToken, tokenBaru, tokenSesiDemo, turunkanRahasiaDemo } from "./sandi.ts";
 
 export const COOKIE_SESI = "sesi_tenda";
 const UMUR_HARI = 14;
@@ -15,7 +14,7 @@ const TIDAK_AKTIF = TIDAK_AKTIF_JAM * 3600_000;
 
 // Kunci tanda tangan sesi demo, diturunkan dari SANDI_DEMO supaya tidak perlu variabel tambahan.
 function rahasiaDemo(): string {
-  return createHash("sha256").update(`sesi-demo|${process.env.SANDI_DEMO ?? ""}`).digest("hex");
+  return turunkanRahasiaDemo(process.env.SANDI_DEMO ?? "");
 }
 
 export const penggunaSaatIni = cache(async (): Promise<Pengguna | null> => {

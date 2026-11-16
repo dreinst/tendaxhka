@@ -4,21 +4,23 @@ import { Kepala, Kosong, nilai, type Cari } from "@/komponen/ui";
 import { wajib } from "@/lib/auth";
 import { daftarLog } from "@/lib/data";
 import { hariIni, namaBulan } from "@/lib/format";
-import { geserBulan } from "@/lib/hitung";
+import { bulanSah, geserBulanSah } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Jejak audit" };
 
 export default async function JejakAudit({ searchParams }: { searchParams: Cari }) {
   await wajib("keuangan.lihat");
   const minta = nilai((await searchParams).bulan);
-  const bulan = /^\d{4}-(0[1-9]|1[0-2])$/.test(minta) ? minta : hariIni().slice(0, 7);
+  const bulan = bulanSah(minta) ? minta : hariIni().slice(0, 7);
+  const sebelumnya = geserBulanSah(bulan, -1);
+  const berikutnya = geserBulanSah(bulan, 1);
   const log = daftarLog(bulan);
   return (
     <>
       <Kepala judul="Jejak audit" ket={`Siapa mengubah apa di ${namaBulan(bulan)}. Catatan ini tidak bisa diubah atau dihapus dari aplikasi.`}>
-        <Link href={`/sistem/log?bulan=${geserBulan(bulan, -1)}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>
+        {sebelumnya && <Link href={`/sistem/log?bulan=${sebelumnya}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>}
         <Link href="/sistem/log" className="tombol tombol-kecil">Bulan ini</Link>
-        <Link href={`/sistem/log?bulan=${geserBulan(bulan, 1)}`} className="tombol tombol-kecil">Bulan berikutnya</Link>
+        {berikutnya && <Link href={`/sistem/log?bulan=${berikutnya}`} className="tombol tombol-kecil">Bulan berikutnya</Link>}
       </Kepala>
       <div className="kartu overflow-hidden">
         {log.length === 0 ? (

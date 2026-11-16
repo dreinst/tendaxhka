@@ -24,10 +24,25 @@ export function boleh(peran: Peran, hak: Hak): boolean {
   return (HAK[hak] as readonly Peran[]).includes(peran);
 }
 
+// Batas tahun yang dianggap wajar. Di luar ini tanggal ditolak, karena tahun 9999 bisa meluap saat ditambah
+// satu hari dan membuat perulangan tanpa henti.
+export const TAHUN_MIN = 2000;
+export const TAHUN_MAKS = 2100;
+
+function tahunWajar(tahun: number): boolean {
+  return tahun >= TAHUN_MIN && tahun <= TAHUN_MAKS;
+}
+
 export function tanggalSah(t: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return false;
+  if (!tahunWajar(Number(t.slice(0, 4)))) return false;
   const d = new Date(`${t}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t;
+}
+
+// Bulan berbentuk YYYY-MM dengan tahun dalam batas wajar.
+export function bulanSah(t: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(t) && tahunWajar(Number(t.slice(0, 4)));
 }
 
 export function tambahHari(t: string, n: number): string {
@@ -36,11 +51,31 @@ export function tambahHari(t: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Semua tanggal dari awal sampai akhir, keduanya ikut.
+// Selisih hari antara dua tanggal YYYY-MM-DD, positif kalau akhir lebih lambat.
+export function selisihHari(awal: string, akhir: string): number {
+  return Math.round((Date.parse(`${akhir}T00:00:00Z`) - Date.parse(`${awal}T00:00:00Z`)) / 864e5);
+}
+
+export const MAKS_RENTANG_HARI = 3700;
+// Lama sewa satu pesanan paling panjang, dihitung dari tanggal pasang sampai bongkar.
+export const MAKS_LAMA_PESANAN = 366;
+
+// Semua tanggal dari awal sampai akhir, keduanya ikut. Melempar galat kalau rentangnya tidak wajar, supaya
+// masukan aneh tidak membuat perulangan panjang atau tanpa henti.
 export function rentangHari(awal: string, akhir: string): string[] {
+  if (!tanggalSah(awal) || !tanggalSah(akhir)) throw new Error(`Rentang tanggal tidak sah: ${awal} sampai ${akhir}.`);
+  if (selisihHari(awal, akhir) > MAKS_RENTANG_HARI) throw new Error(`Rentang tanggal melebihi ${MAKS_RENTANG_HARI} hari.`);
   const hasil: string[] = [];
   for (let t = awal; t <= akhir; t = tambahHari(t, 1)) hasil.push(t);
   return hasil;
+}
+
+// Pesan galat kalau lama sewa tidak wajar, null kalau aman. Tanggal diasumsikan sudah lolos tanggalSah.
+export function galatLamaPesanan(mulai: string, selesai: string): string | null {
+  if (selisihHari(mulai, selesai) > MAKS_LAMA_PESANAN) {
+    return `Lama sewa paling panjang ${MAKS_LAMA_PESANAN} hari dari tanggal pasang sampai bongkar. Pecah menjadi beberapa pesanan.`;
+  }
+  return null;
 }
 
 export function batasBulan(bulan: string): { awal: string; akhir: string; hari: number } {
@@ -52,6 +87,59 @@ export function batasBulan(bulan: string): { awal: string; akhir: string; hari: 
 export function geserBulan(bulan: string, n: number): string {
   const [y, m] = bulan.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+}
+
+// Bulan sesudah atau sebelum bulan ini, atau null kalau hasilnya di luar batas tahun. Untuk tombol navigasi.
+export function geserBulanSah(bulan: string, n: number): string | null {
+  const b = geserBulan(bulan, n);
+  return bulanSah(b) ? b : null;
+}
+
+// Batas atas nilai uang dan jumlah supaya SUM di SQLite tidak bisa meluap.
+export const MAKS_UANG = 100_000_000_000;
+export const MAKS_JUMLAH = 100_000;
+
+// Membaca isian rupiah dari formulir. Menerima "1500000", "1.500.000", "1,500,000", "350.000,00", dan
+// "1500000.50" (bagian sen dibuang). Awalan "Rp" dan spasi diabaikan. Masukan yang artinya tidak bisa
+// dipastikan, negatif, atau bukan angka menghasilkan null.
+export function bacaRupiah(teks: string): number | null {
+  const t = teks.replace(/^\s*rp\.?/i, "").replace(/\s+/g, "");
+  if (!/^[\d.,]+$/.test(t)) return null;
+  const kelompok = (bagian: string, sekat: string) => new RegExp(`^[1-9]\\d{0,2}(\\${sekat}\\d{3})+$`).test(bagian);
+  let bulat: string;
+  const titik = t.split(".").length - 1;
+  const koma = t.split(",").length - 1;
+  if (titik === 0 && koma === 0) {
+    bulat = t;
+  } else if (titik > 0 && koma > 0) {
+    // Pemisah terakhir adalah desimal, yang satunya pemisah ribuan.
+    const ujung = Math.max(t.lastIndexOf("."), t.lastIndexOf(","));
+    const desimal = t.slice(ujung + 1);
+    const depan = t.slice(0, ujung);
+    const sekat = t[ujung] === "." ? "," : ".";
+    if (!/^\d{1,2}$/.test(desimal) || !kelompok(depan, sekat)) return null;
+    bulat = depan.replaceAll(sekat, "");
+  } else {
+    const sekat = titik > 0 ? "." : ",";
+    const jumlahSekat = Math.max(titik, koma);
+    const ujung = t.lastIndexOf(sekat);
+    const belakang = t.slice(ujung + 1);
+    if (jumlahSekat > 1) {
+      if (!kelompok(t, sekat)) return null;
+      bulat = t.replaceAll(sekat, "");
+    } else if (belakang.length === 3) {
+      if (!kelompok(t, sekat)) return null;
+      bulat = t.replace(sekat, "");
+    } else if (belakang.length === 1 || belakang.length === 2) {
+      bulat = t.slice(0, ujung);
+      if (!/^\d+$/.test(bulat)) return null;
+    } else {
+      return null;
+    }
+  }
+  if (!/^\d+$/.test(bulat)) return null;
+  const n = Number(bulat);
+  return Number.isSafeInteger(n) ? n : null;
 }
 
 export type Baris = { jumlah: number; hari: number; harga: number };

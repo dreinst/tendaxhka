@@ -44,6 +44,16 @@ export function samaAman(a: string, b: string): boolean {
 // /tmp sendiri, jadi sesi yang disimpan di basis data hilang saat pindah halaman. Di mode demo, isi sesi
 // (username dan batas waktu) disimpan di cookie dan ditandatangani HMAC, sehingga setiap server bisa
 // memeriksanya tanpa basis data. Bentuk token: payload base64url, titik, tanda tangan base64url.
+// Masa berlaku sesi demo paling lama dari sekarang. Token yang batasnya lebih jauh dari ini ditolak.
+export const MAKS_UMUR_SESI_DEMO = 12 * 3600_000;
+
+// Kunci tanda tangan sesi demo, diturunkan dari SANDI_DEMO. Kata sandi pendek berarti kunci mudah ditebak,
+// jadi ditolak.
+export function turunkanRahasiaDemo(sandi: string): string {
+  if (sandi.length < 8) throw new Error("MODE_DEMO=1 butuh SANDI_DEMO minimal 8 karakter.");
+  return createHash("sha256").update(`sesi-demo|${sandi}`).digest("hex");
+}
+
 export function tokenSesiDemo(username: string, kedaluwarsa: number, rahasia: string): string {
   const isi = Buffer.from(JSON.stringify({ u: username, e: kedaluwarsa })).toString("base64url");
   return `${isi}.${createHmac("sha256", rahasia).update(isi).digest("base64url")}`;
@@ -57,7 +67,7 @@ export function bacaSesiDemo(token: string, rahasia: string, kini: number): stri
   if (kiriman.length !== benar.length || !timingSafeEqual(kiriman, benar)) return null;
   try {
     const data = JSON.parse(Buffer.from(isi, "base64url").toString("utf8")) as { u?: unknown; e?: unknown };
-    if (typeof data.u !== "string" || typeof data.e !== "number" || data.e <= kini) return null;
+    if (typeof data.u !== "string" || typeof data.e !== "number" || data.e <= kini || data.e - kini > MAKS_UMUR_SESI_DEMO) return null;
     return data.u;
   } catch {
     return null;

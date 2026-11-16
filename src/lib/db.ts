@@ -30,12 +30,23 @@ export function db(): DatabaseSync {
     if (!punya("sesi", "batas")) d.exec("ALTER TABLE sesi ADD COLUMN batas TEXT");
     if (!punya("aset", "kapasitas")) d.exec("ALTER TABLE aset ADD COLUMN kapasitas TEXT NOT NULL DEFAULT ''");
     if (!punya("aset", "cocok")) d.exec("ALTER TABLE aset ADD COLUMN cocok TEXT NOT NULL DEFAULT ''");
-    g.__dbTenda = d;
-    if (MODE_DEMO && !d.prepare("SELECT 1 FROM pengguna LIMIT 1").get()) {
-      const sandi = process.env.SANDI_DEMO ?? "";
-      if (sandi.length < 8) throw new Error("MODE_DEMO=1 butuh SANDI_DEMO minimal 8 karakter untuk akun contoh.");
-      isiDataContoh(sandi);
+    // Koneksi baru disimpan di globalThis hanya sesudah data contoh berhasil diisi. Kalau diisi lebih dulu dan
+    // pengisiannya gagal, pemanggilan berikutnya memakai basis data kosong tanpa pengguna.
+    if (MODE_DEMO) {
+      try {
+        if (!d.prepare("SELECT 1 FROM pengguna LIMIT 1").get()) {
+          const sandi = process.env.SANDI_DEMO ?? "";
+          if (sandi.length < 8) throw new Error("MODE_DEMO=1 butuh SANDI_DEMO minimal 8 karakter untuk akun contoh.");
+          g.__dbTenda = d;
+          isiDataContoh(sandi);
+        }
+      } catch (e) {
+        g.__dbTenda = undefined;
+        d.close();
+        throw e;
+      }
     }
+    g.__dbTenda = d;
   }
   return g.__dbTenda;
 }

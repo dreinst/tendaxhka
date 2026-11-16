@@ -5,7 +5,7 @@ import { wajib } from "@/lib/auth";
 import { daftarPakai, type Aset } from "@/lib/data";
 import { semua } from "@/lib/db";
 import { hariIni, namaBulan } from "@/lib/format";
-import { batasBulan, geserBulan, pakaiPerHari, rentangHari } from "@/lib/hitung";
+import { batasBulan, bulanSah, geserBulanSah, pakaiPerHari, rentangHari } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Kalender aset" };
 
@@ -13,7 +13,9 @@ export default async function Kalender({ searchParams }: { searchParams: Cari })
   await wajib("aset.lihat");
   const hari = hariIni();
   const minta = nilai((await searchParams).bulan);
-  const bulan = /^\d{4}-(0[1-9]|1[0-2])$/.test(minta) ? minta : hari.slice(0, 7);
+  const bulan = bulanSah(minta) ? minta : hari.slice(0, 7);
+  const sebelumnya = geserBulanSah(bulan, -1);
+  const berikutnya = geserBulanSah(bulan, 1);
   const { awal, akhir } = batasBulan(bulan);
   const tanggal = rentangHari(awal, akhir);
   const aset = semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran");
@@ -21,9 +23,9 @@ export default async function Kalender({ searchParams }: { searchParams: Cari })
   return (
     <>
       <Kepala judul="Kalender aset" ket={`Sisa unit yang bisa disewakan per hari, ${namaBulan(bulan)}. Penawaran belum mengurangi angka ini.`}>
-        <Link href={`/sistem/kalender?bulan=${geserBulan(bulan, -1)}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>
+        {sebelumnya && <Link href={`/sistem/kalender?bulan=${sebelumnya}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>}
         <Link href="/sistem/kalender" className="tombol tombol-kecil">Bulan ini</Link>
-        <Link href={`/sistem/kalender?bulan=${geserBulan(bulan, 1)}`} className="tombol tombol-kecil">Bulan berikutnya</Link>
+        {berikutnya && <Link href={`/sistem/kalender?bulan=${berikutnya}`} className="tombol tombol-kecil">Bulan berikutnya</Link>}
       </Kepala>
       <div className="kartu overflow-hidden">
         {aset.length === 0 ? (

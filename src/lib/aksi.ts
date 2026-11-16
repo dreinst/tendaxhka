@@ -1,14 +1,15 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { alamatIp, bukaSesi, terlaluSering, tutupSesi, wajib } from "./auth.ts";
-import { ambilPesanan, barisPesanan, bulanTerkunci, catatLog, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, unitDirawat, type Aset } from "./data.ts";
+import { alamatIp, bukaSesi, COOKIE_SESI, terlaluSering, tutupSesi, wajib } from "./auth.ts";
+import { ambilPesanan, bulanTerkunci, cabutSesiLain, catatLog, galatStatus, galatUbahPesanan, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, salinPesanan, setStatusPesanan, unitDirawat, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
 import { hapusBerkasFoto, simpanBerkasFoto } from "./foto.ts";
-import { bacaChecklist, MAKS_FOTO_PER_ASET, MAKS_UKURAN_FOTO, tambahHari, tampakJpeg, tanggalSah, type ButirChecklist } from "./hitung.ts";
-import { cocokSandi, cocokSandiPalsu, hashSandi, samaAman } from "./sandi.ts";
+import { bacaChecklist, bacaRupiah, bulanSah, galatLamaPesanan, MAKS_FOTO_PER_ASET, MAKS_JUMLAH, MAKS_UANG, MAKS_UKURAN_FOTO, nilaiBaris, selisihHari, tambahHari, tampakJpeg, tanggalSah, totalPesanan, type ButirChecklist } from "./hitung.ts";
+import { cocokSandi, cocokSandiPalsu, hashSandi, hashToken, samaAman } from "./sandi.ts";
 
 // Galat yang pesannya boleh ditampilkan ke pengguna. Galat lain dibiarkan naik ke halaman error.
 class Galat extends Error {}
@@ -31,10 +32,27 @@ function teks(fd: FormData, kunci: string, maks = 200): string {
   return String(fd.get(kunci) ?? "").trim().slice(0, maks);
 }
 
-// Menerima "1.500.000" maupun "1500000".
+// Bilangan bulat untuk id dan jumlah. Isian uang jangan lewat sini, pakai uang().
 function bulat(nilai: FormDataEntryValue | null): number {
   const n = parseInt(String(nilai ?? "").replace(/[^\d-]/g, ""), 10);
   return Number.isFinite(n) ? n : 0;
+}
+
+// Jumlah atau hari: bilangan bulat tidak negatif dengan batas atas, supaya hasil kali dan SUM tidak meluap.
+function banyak(nilai: FormDataEntryValue | null, label: string, jalur: string): number {
+  const n = Math.max(0, bulat(nilai));
+  if (n > MAKS_JUMLAH) gagal(jalur, `${label} paling banyak ${MAKS_JUMLAH.toLocaleString("id-ID")}.`);
+  return n;
+}
+
+// Isian uang. Kosong menghasilkan nilai bawaan. Isian yang tidak bisa dipastikan atau di atas batas ditolak.
+function uang(nilai: FormDataEntryValue | null, label: string, jalur: string, kosong = 0): number {
+  const isi = String(nilai ?? "").trim();
+  if (isi === "") return kosong;
+  const n = bacaRupiah(isi);
+  if (n === null) gagal(jalur, `${label} tidak bisa dibaca. Tulis angka rupiah saja, misalnya 1500000 atau 1.500.000.`);
+  if (n > MAKS_UANG) gagal(jalur, `${label} melebihi batas ${rupiah(MAKS_UANG)}.`);
+  return n;
 }
 
 function pilihan<T extends string>(nilai: string, daftar: readonly T[], bawaan: T): T {
@@ -178,10 +196,12 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
   const acara = teks(fd, "acara", 160);
   const mulai = teks(fd, "mulai", 10);
   const selesai = teks(fd, "selesai", 10);
-  const diskon = Math.max(0, bulat(fd.get("diskon")));
+  const diskon = uang(fd.get("diskon"), "Diskon", kembali);
   if (!satu("SELECT 1 FROM kontak WHERE id = ?", kontakId)) gagal(kembali, "Pilih pelanggan dulu.");
   if (!acara) gagal(kembali, "Nama acara wajib diisi.");
-  if (!tanggalSah(mulai) || !tanggalSah(selesai) || selesai < mulai) gagal(kembali, "Tanggal pasang dan bongkar tidak sah.");
+  if (!tanggalSah(mulai) || !tanggalSah(selesai) || selesai < mulai) gagal(kembali, "Tanggal pasang dan bongkar tidak sah. Pakai tahun 2000 sampai 2100.");
+  const lamaGalat = galatLamaPesanan(mulai, selesai);
+  if (lamaGalat) gagal(kembali, lamaGalat);
 
   const aset = new Map(semua<Aset>("SELECT * FROM aset").map((a) => [a.id, a]));
   const kolom = (k: string) => fd.getAll(k);
@@ -189,7 +209,7 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
   const baris: { asetId: number | null; deskripsi: string; jumlah: number; hari: number; harga: number }[] = [];
   bAset.forEach((nilai, i) => {
     const a = aset.get(bulat(nilai));
-    const jumlah = bulat(bJumlah[i]);
+    const jumlah = banyak(bJumlah[i], `Jumlah baris ${i + 1}`, kembali);
     const deskripsi = String(bDesk[i] ?? "").trim().slice(0, 200) || (a ? [a.nama, a.ukuran].filter(Boolean).join(" ") : "");
     if (jumlah <= 0 || !deskripsi) return;
     const hargaIsi = String(bHarga[i] ?? "").trim();
@@ -197,17 +217,22 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
       asetId: a?.id ?? null,
       deskripsi,
       jumlah,
-      hari: Math.max(1, bulat(bHari[i])),
-      harga: hargaIsi === "" ? (a?.harga ?? 0) : Math.max(0, bulat(hargaIsi)),
+      hari: Math.max(1, banyak(bHari[i], `Hari baris ${i + 1}`, kembali)),
+      harga: uang(hargaIsi, `Harga baris ${i + 1}`, kembali, a?.harga ?? 0),
     });
   });
   if (baris.length === 0) gagal(kembali, "Isi minimal satu baris dengan jumlah lebih dari nol.");
+  if (baris.some((b) => nilaiBaris(b) > MAKS_UANG) || totalPesanan(baris, 0).subtotal > MAKS_UANG) {
+    gagal(kembali, `Nilai pesanan melebihi batas ${rupiah(MAKS_UANG)}. Periksa jumlah, hari, dan harga.`);
+  }
 
   const galat = coba(() => {
     if (id) {
       const lama = satu<{ status: string; mulai: string; selesai: string }>("SELECT status, mulai, selesai FROM pesanan WHERE id = ?", id);
       if (!lama) throw new Galat("Pesanan tidak ditemukan.");
       if (lama.status === "selesai" || lama.status === "batal") throw new Galat("Pesanan yang sudah selesai atau batal tidak bisa diubah.");
+      const galatUbah = galatUbahPesanan(id, { baris, diskon, mulai, selesai });
+      if (galatUbah) throw new Galat(galatUbah);
       // Tugas pasang dan bongkar yang belum selesai ikut pindah kalau tanggal pesanan digeser. Tugas yang
       // tanggalnya sudah diubah manual (tidak sama dengan tanggal lama) dibiarkan.
       jalankan("UPDATE tugas SET tanggal = ? WHERE pesanan_id = ? AND jenis = 'pasang' AND selesai = 0 AND tanggal = ?", mulai, id, lama.mulai);
@@ -293,7 +318,10 @@ export async function ubahStatus(id: number, tujuan: string): Promise<void> {
     const p = ambilPesanan(id);
     if (!p) throw new Galat("Pesanan tidak ditemukan.");
     if (!JALUR_STATUS[p.status]?.includes(tujuan)) throw new Galat("Perubahan status itu tidak diizinkan.");
-    if (tujuan === "batal" && p.dibayar > 0) throw new Galat("Pesanan ini sudah menerima pembayaran. Hapus pembayarannya dulu sebelum membatalkan.");
+    const galatUang = galatStatus(p, tujuan);
+    if (galatUang) throw new Galat(galatUang);
+    // Faktur yang sudah masuk periode tertutup tidak boleh dicabut diam-diam.
+    if (tujuan === "penawaran" && p.status === "booking" && p.tgl_faktur) pastikanTerbuka(p.tgl_faktur);
     if (tujuan === "booking") {
       const kurang = kekurangan(id);
       if (kurang.length) throw new Galat(`Belum bisa dibooking, aset tidak cukup. ${kurang.join("; ")}.`);
@@ -322,7 +350,7 @@ export async function ubahStatus(id: number, tujuan: string): Promise<void> {
       pastikanTerbuka(hariIni());
       jalankan("UPDATE pesanan SET tgl_faktur = ? WHERE id = ?", hariIni(), id);
     }
-    jalankan("UPDATE pesanan SET status = ? WHERE id = ?", tujuan, id);
+    setStatusPesanan(id, tujuan);
     catatLog(u, "Ubah status pesanan", `${p.nomor}, dari ${LABEL_STATUS[p.status]} ke ${LABEL_STATUS[tujuan]}`);
   });
   if (galat) gagal(kembali, galat);
@@ -346,39 +374,17 @@ export async function terbitkanFaktur(id: number): Promise<void> {
 
 // Menyalin pesanan menjadi penawaran baru di tanggal lain, untuk pelanggan yang memesan berulang.
 export async function duplikatPesanan(id: number, fd: FormData): Promise<void> {
-  await wajib("pesanan.tulis");
+  const u = await wajib("pesanan.tulis");
   const mulai = teks(fd, "mulai", 10);
   const p = ambilPesanan(id);
   if (!p) gagal("/sistem/pesanan", "Pesanan tidak ditemukan.");
-  if (!tanggalSah(mulai)) gagal(`/sistem/pesanan/${id}`, "Isi tanggal pasang untuk pesanan baru.");
-  const lama = Math.round((Date.parse(p.selesai) - Date.parse(p.mulai)) / 864e5);
-  let baru = 0;
-  transaksi(() => {
-    const hari = hariIni();
-    baru = jalankan(
-      "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, diskon, catatan, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      nomorBerikut(hari),
-      p.kontak_id,
-      p.acara,
-      p.lokasi,
-      mulai,
-      tambahHari(mulai, lama),
-      p.diskon,
-      p.catatan,
-      hari,
-    );
-    for (const b of barisPesanan(id)) {
-      jalankan(
-        "INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, ?, ?, ?, ?, ?)",
-        baru,
-        b.aset_id,
-        b.deskripsi,
-        b.jumlah,
-        b.hari,
-        b.harga,
-      );
-    }
-  });
+  if (!tanggalSah(mulai)) gagal(`/sistem/pesanan/${id}`, "Isi tanggal pasang untuk pesanan baru (tahun 2000 sampai 2100).");
+  const galatLama = galatLamaPesanan(p.mulai, p.selesai);
+  if (galatLama) gagal(`/sistem/pesanan/${id}`, galatLama);
+  const lama = selisihHari(p.mulai, p.selesai);
+  const selesai = tambahHari(mulai, lama);
+  if (!tanggalSah(selesai)) gagal(`/sistem/pesanan/${id}`, "Tanggal bongkar pesanan baru jatuh di luar tahun 2000 sampai 2100.");
+  const baru = salinPesanan(u, id, mulai, selesai);
   redirect(`/sistem/pesanan/${baru}`);
 }
 
@@ -402,7 +408,7 @@ export async function tambahPembayaran(pesananId: number, fd: FormData): Promise
   const u = await wajib("pesanan.tulis");
   const kembali = `/sistem/pesanan/${pesananId}`;
   const tgl = teks(fd, "tanggal", 10);
-  const jumlah = bulat(fd.get("jumlah"));
+  const jumlah = uang(fd.get("jumlah"), "Jumlah pembayaran", kembali);
   const galat = coba(() => {
     const p = ambilPesanan(pesananId);
     if (!p || p.status === "penawaran" || p.status === "batal") throw new Galat("Pembayaran hanya untuk pesanan yang sudah dibooking.");
@@ -446,7 +452,7 @@ export async function tambahBiaya(fd: FormData): Promise<void> {
   const pesananId = bulat(fd.get("pesanan_id"));
   const tgl = teks(fd, "tanggal", 10);
   const kembali = pesananId ? `/sistem/pesanan/${pesananId}` : `/sistem/keuangan?bulan=${tgl.slice(0, 7)}`;
-  const jumlah = bulat(fd.get("jumlah"));
+  const jumlah = uang(fd.get("jumlah"), "Jumlah biaya", tanggalSah(tgl) ? kembali : "/sistem/keuangan");
   const kategori = teks(fd, "kategori", 60);
   const galat = coba(() => {
     if (!tanggalSah(tgl) || jumlah <= 0 || !kategori) throw new Galat("Isi tanggal, kategori, dan jumlah biaya.");
@@ -501,8 +507,8 @@ export async function simpanAset(fd: FormData): Promise<void> {
     kategori,
     teks(fd, "ukuran", 40),
     teks(fd, "satuan", 20) || "unit",
-    Math.max(0, bulat(fd.get("jumlah"))),
-    Math.max(0, bulat(fd.get("harga"))),
+    banyak(fd.get("jumlah"), "Jumlah unit", kembali),
+    uang(fd.get("harga"), "Harga sewa", kembali),
     teks(fd, "deskripsi", 300),
     fd.get("tampil_web") ? 1 : 0,
     fd.get("aktif") ? 1 : 0,
@@ -658,9 +664,9 @@ export async function centangTugas(id: number, fd: FormData): Promise<void> {
 export async function kunciPeriode(bulan: string): Promise<void> {
   const u = await wajib("keuangan.tulis");
   const galat = coba(() => {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bulan) || bulan > hariIni().slice(0, 7)) throw new Galat("Bulan itu belum bisa ditutup.");
+    if (!bulanSah(bulan) || bulan > hariIni().slice(0, 7)) throw new Galat("Bulan itu belum bisa ditutup.");
     if (bulanTerkunci(`${bulan}-01`)) throw new Galat("Bulan itu sudah ditutup.");
-    kunciBulan(bulan, new Date().toISOString());
+    kunciBulan(bulan);
     const p = satu<{ laba_bersih: number; bagian_tenda: number; bagian_hka: number }>(
       "SELECT laba_bersih, bagian_tenda, bagian_hka FROM periode WHERE bulan = ?",
       bulan,
@@ -690,8 +696,8 @@ export async function catatBayarPartner(bulan: string, fd: FormData): Promise<vo
     bulan,
   );
   if (!p) gagal("/sistem/bagi-hasil", "Periode itu belum ditutup.");
-  const tenda = Math.max(0, bulat(fd.get("dibayar_tenda")));
-  const hka = Math.max(0, bulat(fd.get("dibayar_hka")));
+  const tenda = uang(fd.get("dibayar_tenda"), "Pembayaran ke Tenda Indonesia", "/sistem/bagi-hasil");
+  const hka = uang(fd.get("dibayar_hka"), "Pembayaran ke HKA", "/sistem/bagi-hasil");
   // Saat rugi, bagian partner negatif sehingga batasnya nol: tidak ada laba yang bisa dibayarkan.
   if (tenda > Math.max(0, p.bagian_tenda) || hka > Math.max(0, p.bagian_hka)) {
     gagal("/sistem/bagi-hasil", "Pembayaran ke partner tidak boleh melebihi bagiannya di periode itu.");
@@ -759,7 +765,12 @@ export async function simpanPengguna(fd: FormData): Promise<void> {
     if (sandi) {
       // Ganti kata sandi atau menonaktifkan akun mencabut semua sesinya.
       jalankan("UPDATE pengguna SET sandi = ? WHERE id = ?", hashSandi(sandi), id);
+      // Akun sendiri tetap masuk di perangkat ini, sesi di perangkat lain dicabut.
       if (id !== saya.id) jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
+      else {
+        const token = (await cookies()).get(COOKIE_SESI)?.value;
+        cabutSesiLain(id, token ? hashToken(token) : null);
+      }
     }
     if (!aktif) jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
     catatLog(saya, "Ubah pengguna", `${username}, peran ${peran}, ${aktif ? "aktif" : "nonaktif"}${sandi ? ", kata sandi diganti" : ""}`);
