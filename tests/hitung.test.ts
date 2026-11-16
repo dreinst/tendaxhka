@@ -90,3 +90,16 @@ test("pemeriksaan JPEG melihat penanda awal dan akhir", () => {
   assert.equal(tampakJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])), false);
   assert.equal(tampakJpeg(new Uint8Array([])), false);
 });
+
+test("token sesi demo hanya sah dengan kunci yang sama dan sebelum habis", async () => {
+  const { bacaSesiDemo, tokenSesiDemo } = await import("../src/lib/sandi.ts");
+  const t = tokenSesiDemo("admin", 2_000, "kunci-a");
+  assert.equal(bacaSesiDemo(t, "kunci-a", 1_000), "admin");
+  assert.equal(bacaSesiDemo(t, "kunci-b", 1_000), null);
+  assert.equal(bacaSesiDemo(t, "kunci-a", 2_000), null);
+  const [isi, tanda] = t.split(".");
+  const palsu = Buffer.from(JSON.stringify({ u: "admin", e: 9_999_999 })).toString("base64url");
+  assert.equal(bacaSesiDemo(`${palsu}.${tanda}`, "kunci-a", 1_000), null);
+  assert.equal(bacaSesiDemo(isi, "kunci-a", 1_000), null);
+  assert.equal(bacaSesiDemo("bukan-token", "kunci-a", 1_000), null);
+});

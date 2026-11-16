@@ -127,7 +127,7 @@ HEADER_IP=x-real-ip
 
 Dengan `MODE_DEMO=1`, basis data dan foto ditaruh di `/tmp/tenda-demo`, lalu diisi data contoh (`src/lib/contoh.ts`) saat masih kosong. Semua akun contoh (`admin`, `sales`, `gudang`, `kru`, `partner-tenda`, `partner-hka`) memakai `SANDI_DEMO`. Setiap halaman menampilkan pita "Versi demo" dan seluruh situs ditandai `noindex`.
 
-Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Kalau dua server aktif bersamaan, keduanya punya data sendiri-sendiri, jadi sesekali sesi login bisa hilang. Mode ini hanya untuk menunjukkan tampilan, tidak untuk data asli.
+Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Vercel bisa melayani halaman yang berbeda dari server yang berbeda, dan masing-masing punya basis data sendiri. Karena itu sesi login di mode demo tidak disimpan di basis data, melainkan di cookie yang ditandatangani HMAC dengan kunci turunan `SANDI_DEMO`, sehingga login tetap berlaku di semua halaman. Data yang ditambahkan di satu halaman (misalnya pesanan baru) bisa saja tidak terlihat di halaman lain. Mode ini hanya untuk menunjukkan tampilan, tidak untuk data asli.
 
 ## Yang perlu diketahui sebelum dipakai sungguhan
 

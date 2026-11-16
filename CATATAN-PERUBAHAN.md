@@ -213,3 +213,16 @@ Perubahan:
 Batasan: data demo hilang setiap kali server dimulai ulang atau setelah deploy baru. Kalau Vercel menjalankan dua server bersamaan, masing-masing punya data sendiri. Ini hanya untuk pratinjau.
 
 Diuji dengan build produksi dan `next start` memakai `MODE_DEMO=1`: basis data terbentuk saat permintaan pertama (bukan saat build), katalog berisi 10 barang contoh, login admin, unggah foto ke `/tmp`, foto tampil di katalog, dan pita demo serta `noindex` muncul.
+
+## 13. Login demo tidak hilang saat pindah halaman (branch `demo-vercel`)
+
+Masalah: di Vercel, setelah login sebagai admin lalu membuka menu lain, pengguna langsung dilempar kembali ke halaman login. Vercel melayani halaman yang berbeda dari server yang berbeda, masing-masing dengan basis data `/tmp` sendiri, sehingga sesi yang dicatat di satu server tidak dikenal server lain.
+
+Perubahan:
+
+- Di mode demo, sesi login disimpan di cookie berisi username dan batas waktu, ditandatangani HMAC SHA-256 dengan kunci turunan dari `SANDI_DEMO` (`tokenSesiDemo()` dan `bacaSesiDemo()` di `src/lib/sandi.ts`). Setiap server bisa memeriksanya tanpa basis data.
+- Pengguna dicari lewat username, karena data contoh di setiap server dibuat dengan urutan yang sama.
+- Di luar mode demo, sesi tetap disimpan di basis data seperti sebelumnya.
+- Tes baru memastikan token ditolak kalau kuncinya beda, sudah habis, isinya diubah, atau bentuknya rusak.
+
+Diuji dengan dua server produksi yang basis datanya terpisah: login di server pertama tetap berlaku untuk `/sistem/aset`, `/sistem/pesanan`, dan `/sistem/log` di server kedua, cookie palsu ditolak, dan Keluar tetap berfungsi.

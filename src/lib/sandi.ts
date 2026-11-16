@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 export function hashSandi(sandi: string): string {
   const garam = randomBytes(16);
@@ -38,4 +38,28 @@ export function samaAman(a: string, b: string): boolean {
   const ha = createHash("sha256").update(a).digest();
   const hb = createHash("sha256").update(b).digest();
   return timingSafeEqual(ha, hb);
+}
+
+// Sesi untuk mode demo. Di Vercel, halaman bisa dilayani beberapa server yang masing-masing punya basis data
+// /tmp sendiri, jadi sesi yang disimpan di basis data hilang saat pindah halaman. Di mode demo, isi sesi
+// (username dan batas waktu) disimpan di cookie dan ditandatangani HMAC, sehingga setiap server bisa
+// memeriksanya tanpa basis data. Bentuk token: payload base64url, titik, tanda tangan base64url.
+export function tokenSesiDemo(username: string, kedaluwarsa: number, rahasia: string): string {
+  const isi = Buffer.from(JSON.stringify({ u: username, e: kedaluwarsa })).toString("base64url");
+  return `${isi}.${createHmac("sha256", rahasia).update(isi).digest("base64url")}`;
+}
+
+export function bacaSesiDemo(token: string, rahasia: string, kini: number): string | null {
+  const [isi, tanda] = token.split(".");
+  if (!isi || !tanda) return null;
+  const benar = createHmac("sha256", rahasia).update(isi).digest();
+  const kiriman = Buffer.from(tanda, "base64url");
+  if (kiriman.length !== benar.length || !timingSafeEqual(kiriman, benar)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(isi, "base64url").toString("utf8")) as { u?: unknown; e?: unknown };
+    if (typeof data.u !== "string" || typeof data.e !== "number" || data.e <= kini) return null;
+    return data.u;
+  } catch {
+    return null;
+  }
 }
