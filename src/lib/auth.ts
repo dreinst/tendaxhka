@@ -25,11 +25,11 @@ export const penggunaSaatIni = cache(async (): Promise<Pengguna | null> => {
     // Pengguna dicari lewat username karena data contoh di setiap server demo dibuat dengan urutan yang sama.
     const username = bacaSesiDemo(token, rahasiaDemo(), Date.now());
     if (!username) return null;
-    return satu<Pengguna>("SELECT id, nama, username, peran, aktif FROM pengguna WHERE username = ? AND aktif = 1", username) ?? null;
+    return (await satu<Pengguna>("SELECT id, nama, username, peran, aktif FROM pengguna WHERE username = ? AND aktif = 1", username)) ?? null;
   }
   const hash = hashToken(token);
   const kini = Date.now();
-  const u = satu<Pengguna & { kedaluwarsa: string }>(
+  const u = await satu<Pengguna & { kedaluwarsa: string }>(
     `SELECT u.id, u.nama, u.username, u.peran, u.aktif, s.kedaluwarsa FROM sesi s JOIN pengguna u ON u.id = s.pengguna_id
      WHERE s.token = ? AND s.kedaluwarsa > ? AND (s.batas IS NULL OR s.batas > ?) AND u.aktif = 1`,
     hash,
@@ -40,7 +40,7 @@ export const penggunaSaatIni = cache(async (): Promise<Pengguna | null> => {
   // Geser batas tidak aktif ke depan, paling jauh sampai batas umur sesi. Supaya tidak menulis ke basis data
   // di setiap permintaan, penggeseran hanya dilakukan kalau sisa waktunya sudah berkurang lebih dari 5 menit.
   if (Date.parse(u.kedaluwarsa) - kini < TIDAK_AKTIF - 5 * 60_000) {
-    jalankan(
+    await jalankan(
       "UPDATE sesi SET batas = COALESCE(batas, kedaluwarsa), kedaluwarsa = MIN(?, COALESCE(batas, kedaluwarsa)) WHERE token = ?",
       new Date(kini + TIDAK_AKTIF).toISOString(),
       hash,
@@ -59,7 +59,7 @@ export async function wajib(hak?: Hak): Promise<Pengguna> {
 
 export async function bukaSesi(penggunaId: number): Promise<void> {
   if (MODE_DEMO) {
-    const u = satu<{ username: string }>("SELECT username FROM pengguna WHERE id = ?", penggunaId);
+    const u = await satu<{ username: string }>("SELECT username FROM pengguna WHERE id = ?", penggunaId);
     if (!u) return;
     const habis = Date.now() + TIDAK_AKTIF;
     (await cookies()).set(COOKIE_SESI, tokenSesiDemo(u.username, habis, rahasiaDemo()), {
@@ -73,8 +73,8 @@ export async function bukaSesi(penggunaId: number): Promise<void> {
   }
   const { token, hash } = tokenBaru();
   const kedaluwarsa = new Date(Date.now() + UMUR_HARI * 864e5);
-  jalankan("DELETE FROM sesi WHERE kedaluwarsa <= ? OR batas <= ?", new Date().toISOString(), new Date().toISOString());
-  jalankan(
+  await jalankan("DELETE FROM sesi WHERE kedaluwarsa <= ? OR batas <= ?", new Date().toISOString(), new Date().toISOString());
+  await jalankan(
     "INSERT INTO sesi (token, pengguna_id, kedaluwarsa, batas) VALUES (?, ?, ?, ?)",
     hash,
     penggunaId,
@@ -93,7 +93,7 @@ export async function bukaSesi(penggunaId: number): Promise<void> {
 export async function tutupSesi(): Promise<void> {
   const jar = await cookies();
   const token = jar.get(COOKIE_SESI)?.value;
-  if (token && !MODE_DEMO) jalankan("DELETE FROM sesi WHERE token = ?", hashToken(token));
+  if (token && !MODE_DEMO) await jalankan("DELETE FROM sesi WHERE token = ?", hashToken(token));
   jar.delete(COOKIE_SESI);
 }
 
@@ -108,7 +108,7 @@ export async function perangkatDikenal(username: string): Promise<string | null>
   const token = (await cookies()).get(COOKIE_PERANGKAT)?.value ?? "";
   if (!TOKEN_SAH.test(token)) return null;
   const hash = hashToken(token);
-  return perangkatMilik(hash, username) ? hash : null;
+  return (await perangkatMilik(hash, username)) ? hash : null;
 }
 
 // Dipanggil sesudah berhasil masuk. Token yang sudah ada dipakai lagi supaya perangkat bersama tetap dikenal
@@ -118,7 +118,7 @@ export async function kenaliPerangkat(penggunaId: number): Promise<void> {
   const lama = jar.get(COOKIE_PERANGKAT)?.value ?? "";
   const token = TOKEN_SAH.test(lama) ? lama : tokenBaru().token;
   const kedaluwarsa = new Date(Date.now() + UMUR_PERANGKAT_HARI * 864e5);
-  catatPerangkat(hashToken(token), penggunaId, kedaluwarsa);
+  await catatPerangkat(hashToken(token), penggunaId, kedaluwarsa);
   jar.set(COOKIE_PERANGKAT, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

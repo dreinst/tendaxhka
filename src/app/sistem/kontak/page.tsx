@@ -17,7 +17,7 @@ export default async function HalamanKontak({ searchParams }: { searchParams: Ca
   const galat = nilai((await searchParams).galat);
   const hari = hariIni();
   // Yang tindak lanjutnya paling dekat tampil paling atas di tiap kolom.
-  const kontak = semua<Kontak>("SELECT * FROM kontak ORDER BY COALESCE(tindak_lanjut, '9999') ASC, id DESC LIMIT 300");
+  const kontak = await semua<Kontak>("SELECT * FROM kontak ORDER BY COALESCE(tindak_lanjut, '9999') ASC, id DESC LIMIT 300");
   return (
     <>
       <Kepala judul="CRM" ket="Lead dan pelanggan per tahap. Permintaan dari website masuk ke kolom Baru." />

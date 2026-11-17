@@ -4,9 +4,12 @@ import { semua } from "./db.ts";
 import { nomorWa } from "./hitung.ts";
 
 // Barang yang tampil di website. Hanya kolom untuk pengunjung yang dikirim ke browser, jumlah stok tidak ikut.
-export function barangKatalog(): Barang[] {
-  const foto = fotoPerAset();
-  return semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND tampil_web = 1 ORDER BY kategori, harga DESC").map((a) => ({
+export async function barangKatalog(): Promise<Barang[]> {
+  const [foto, aset] = await Promise.all([
+    fotoPerAset(),
+    semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND tampil_web = 1 ORDER BY kategori, harga DESC"),
+  ]);
+  return aset.map((a) => ({
     id: a.id,
     nama: a.nama,
     ukuran: a.ukuran,
@@ -21,8 +24,8 @@ export function barangKatalog(): Barang[] {
 }
 
 // Identitas usaha dan kontak yang dipakai kepala, kaki, dan tombol WhatsApp di semua halaman publik.
-export function identitasSitus() {
-  const s = pengaturan();
+export async function identitasSitus() {
+  const s = await pengaturan();
   // Nomor WhatsApp khusus dipakai lebih dulu, lalu nomor telepon. Tanpa nomor seluler yang sah, tombol tidak tampil.
   const wa = nomorWa(s.whatsapp) ?? nomorWa(s.telepon);
   return { s, wa, sapa: `Halo ${s.nama_usaha}, saya ingin tanya sewa tenda.` };

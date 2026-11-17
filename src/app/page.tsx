@@ -24,8 +24,7 @@ const LANGKAH = [
 
 export default async function Beranda({ searchParams }: { searchParams: Cari }) {
   const sp = await searchParams;
-  const { s, wa, sapa } = identitasSitus();
-  const barang = barangKatalog();
+  const [{ s, wa, sapa }, barang] = await Promise.all([identitasSitus(), barangKatalog()]);
   const kategori = ringkasKategori(barang);
   const termurah = tendaTermurah(barang);
   const pita = [

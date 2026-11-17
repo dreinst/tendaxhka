@@ -10,6 +10,10 @@ export const metadata: Metadata = { title: "Penawaran baru" };
 export default async function PenawaranBaru({ searchParams }: { searchParams: Cari }) {
   await wajib("pesanan.tulis");
   const sp = await searchParams;
+  const [kontak, aset] = await Promise.all([
+    semua<Kontak>("SELECT * FROM kontak WHERE tahap <> 'kalah' ORDER BY nama"),
+    semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran"),
+  ]);
   return (
     <>
       <Kepala judul="Penawaran baru" ket="Penawaran belum mengunci aset. Aset baru dikunci saat pesanan dibooking." />
@@ -17,8 +21,8 @@ export default async function PenawaranBaru({ searchParams }: { searchParams: Ca
       <div className="kartu p-4">
         <FormPesanan
           baris={[]}
-          kontak={semua<Kontak>("SELECT * FROM kontak WHERE tahap <> 'kalah' ORDER BY nama")}
-          aset={semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran")}
+          kontak={kontak}
+          aset={aset}
           kontakId={Number(nilai(sp.kontak)) || undefined}
         />
       </div>

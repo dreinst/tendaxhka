@@ -9,8 +9,8 @@ export const metadata: Metadata = { title: "Kredit foto" };
 // Kepala dan kaki halaman membaca identitas usaha dari basis data.
 export const dynamic = "force-dynamic";
 
-export default function KreditFoto() {
-  const { s, wa, sapa } = identitasSitus();
+export default async function KreditFoto() {
+  const { s, wa, sapa } = await identitasSitus();
   return (
     <>
       <KepalaSitus nama={s.nama_usaha} wa={wa} sapa={sapa} />

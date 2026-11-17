@@ -40,8 +40,10 @@ function FormPengguna({ p }: { p?: Pengguna }) {
 export default async function Pengaturan({ searchParams }: { searchParams: Cari }) {
   await wajib("pengaturan");
   const sp = await searchParams;
-  const s = pengaturan();
-  const pengguna = semua<Pengguna>("SELECT id, nama, username, peran, aktif FROM pengguna ORDER BY aktif DESC, nama");
+  const [s, pengguna] = await Promise.all([
+    pengaturan(),
+    semua<Pengguna>("SELECT id, nama, username, peran, aktif FROM pengguna ORDER BY aktif DESC, nama"),
+  ]);
   return (
     <>
       <Kepala judul="Pengaturan" />

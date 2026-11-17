@@ -9,14 +9,14 @@ const menit = (n: number) => n * 60_000;
 export const JENDELA_MASUK = 15;
 
 // Jumlah percobaan yang tercatat untuk satu kunci selama jendelanya masih berjalan.
-export function hitungan(kunci: string, jendelaMenit: number, kini = Date.now()): number {
-  const b = satu<{ mulai: number; jumlah: number }>("SELECT mulai, jumlah FROM pembatas WHERE kunci = ?", kunci);
+export async function hitungan(kunci: string, jendelaMenit: number, kini = Date.now()): Promise<number> {
+  const b = await satu<{ mulai: number; jumlah: number }>("SELECT mulai, jumlah FROM pembatas WHERE kunci = ?", kunci);
   return b && kini - b.mulai < menit(jendelaMenit) ? b.jumlah : 0;
 }
 
 // Menambah satu percobaan. Jendela yang sudah lewat dimulai lagi dari satu.
-export function catatPercobaan(kunci: string, jendelaMenit: number, kini = Date.now()): void {
-  jalankan(
+export async function catatPercobaan(kunci: string, jendelaMenit: number, kini = Date.now()): Promise<void> {
+  await jalankan(
     `INSERT INTO pembatas (kunci, mulai, jumlah) VALUES (?, ?, 1)
      ON CONFLICT (kunci) DO UPDATE SET
        jumlah = CASE WHEN excluded.mulai - mulai >= ? THEN 1 ELSE jumlah + 1 END,
@@ -28,15 +28,15 @@ export function catatPercobaan(kunci: string, jendelaMenit: number, kini = Date.
   );
 }
 
-export function lupakanPercobaan(kunci: string[]): void {
-  for (const k of kunci) jalankan("DELETE FROM pembatas WHERE kunci = ?", k);
+export async function lupakanPercobaan(kunci: string[]): Promise<void> {
+  for (const k of kunci) await jalankan("DELETE FROM pembatas WHERE kunci = ?", k);
 }
 
 // Hitungan yang jendelanya sudah lama lewat dan perangkat yang sudah kedaluwarsa dibuang supaya kedua
 // tabel tidak terus membesar.
-export function bersihkanPembatas(kini = Date.now()): void {
-  jalankan("DELETE FROM pembatas WHERE mulai < ?", kini - 24 * 3600_000);
-  jalankan("DELETE FROM perangkat WHERE kedaluwarsa <= ?", new Date(kini).toISOString());
+export async function bersihkanPembatas(kini = Date.now()): Promise<void> {
+  await jalankan("DELETE FROM pembatas WHERE mulai < ?", kini - 24 * 3600_000);
+  await jalankan("DELETE FROM perangkat WHERE kedaluwarsa <= ?", new Date(kini).toISOString());
 }
 
 export type BatasMasuk = { kunci: string; maks: number; lupakan: boolean };
@@ -66,25 +66,26 @@ export function batasMasuk(ip: string | null, username: string, perangkat: strin
   ];
 }
 
-export function melewatiBatas(batas: { kunci: string; maks: number }[], jendelaMenit: number, kini = Date.now()): boolean {
-  return batas.some((b) => hitungan(b.kunci, jendelaMenit, kini) >= b.maks);
+export async function melewatiBatas(batas: { kunci: string; maks: number }[], jendelaMenit: number, kini = Date.now()): Promise<boolean> {
+  const jumlah = await Promise.all(batas.map((b) => hitungan(b.kunci, jendelaMenit, kini)));
+  return batas.some((b, i) => jumlah[i] >= b.maks);
 }
 
 // Perangkat yang pernah berhasil masuk dikenali lewat cookie berisi token acak. Basis data hanya menyimpan
 // hash-nya, dipasangkan dengan akun yang berhasil masuk. Satu perangkat boleh dikenal untuk beberapa akun,
 // misalnya komputer kantor yang dipakai bergantian.
-export function perangkatMilik(hash: string, username: string, kini = Date.now()): boolean {
-  return !!satu(
+export async function perangkatMilik(hash: string, username: string, kini = Date.now()): Promise<boolean> {
+  return !!(await satu(
     `SELECT 1 FROM perangkat p JOIN pengguna u ON u.id = p.pengguna_id
      WHERE p.token = ? AND u.username = ? AND u.aktif = 1 AND p.kedaluwarsa > ?`,
     hash,
     username,
     new Date(kini).toISOString(),
-  );
+  ));
 }
 
-export function catatPerangkat(hash: string, penggunaId: number, kedaluwarsa: Date): void {
-  jalankan(
+export async function catatPerangkat(hash: string, penggunaId: number, kedaluwarsa: Date): Promise<void> {
+  await jalankan(
     `INSERT INTO perangkat (token, pengguna_id, kedaluwarsa) VALUES (?, ?, ?)
      ON CONFLICT (token, pengguna_id) DO UPDATE SET kedaluwarsa = excluded.kedaluwarsa`,
     hash,
@@ -94,6 +95,6 @@ export function catatPerangkat(hash: string, penggunaId: number, kedaluwarsa: Da
 }
 
 // Dipanggil saat kata sandi akun diganti atau akunnya dinonaktifkan.
-export function lupakanPerangkat(penggunaId: number): void {
-  jalankan("DELETE FROM perangkat WHERE pengguna_id = ?", penggunaId);
+export async function lupakanPerangkat(penggunaId: number): Promise<void> {
+  await jalankan("DELETE FROM perangkat WHERE pengguna_id = ?", penggunaId);
 }

@@ -14,9 +14,11 @@ export default async function HalamanAset({ searchParams }: { searchParams: Cari
   const u = await wajib("aset.lihat");
   const tulis = boleh(u.peran, "aset.tulis");
   const hari = hariIni();
-  const aset = semua<Aset>("SELECT * FROM aset ORDER BY aktif DESC, kategori, nama, ukuran");
-  const sewa = daftarPakai(hari, hari, { perawatan: false });
-  const semuaPakai = daftarPakai(hari, hari);
+  const [aset, sewa, semuaPakai] = await Promise.all([
+    semua<Aset>("SELECT * FROM aset ORDER BY aktif DESC, kategori, nama, ukuran"),
+    daftarPakai(hari, hari, { perawatan: false }),
+    daftarPakai(hari, hari),
+  ]);
   return (
     <>
       <Kepala judul="Aset" ket="Jumlah yang dimiliki, yang sedang tersewa, dan yang sedang diperbaiki hari ini." />

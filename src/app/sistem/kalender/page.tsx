@@ -18,8 +18,10 @@ export default async function Kalender({ searchParams }: { searchParams: Cari })
   const berikutnya = geserBulanSah(bulan, 1);
   const { awal, akhir } = batasBulan(bulan);
   const tanggal = rentangHari(awal, akhir);
-  const aset = semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran");
-  const pakai = daftarPakai(awal, akhir);
+  const [aset, pakai] = await Promise.all([
+    semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran"),
+    daftarPakai(awal, akhir),
+  ]);
   return (
     <>
       <Kepala judul="Kalender aset" ket={`Sisa unit yang bisa disewakan per hari, ${namaBulan(bulan)}. Penawaran belum mengurangi angka ini.`}>

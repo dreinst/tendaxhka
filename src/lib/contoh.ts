@@ -11,12 +11,12 @@ export const TABEL_DATA = ["periode", "tugas", "biaya", "pembayaran", "pesanan_b
 
 export const AKUN_CONTOH = ["admin", "sales", "gudang", "kru", "partner-tenda", "partner-hka"];
 
-export function isiDataContoh(sandi: string): void {
+export async function isiDataContoh(sandi: string): Promise<void> {
   const hari = hariIni();
   const beres = (teks: string, selesai: boolean) =>
     JSON.stringify(teks.split("\n").map((t) => ({ teks: t, beres: selesai })));
 
-  transaksi(() => {
+  await transaksi(async () => {
     for (const [nama, username, peran] of [
       ["Admin Sistem", "admin", "admin"],
       ["Sales Contoh", "sales", "sales"],
@@ -25,7 +25,7 @@ export function isiDataContoh(sandi: string): void {
       ["Partner Tenda Indonesia", "partner-tenda", "partner"],
       ["Partner HKA Management", "partner-hka", "partner"],
     ]) {
-      jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, ?)", nama, username, hashSandi(sandi), peran);
+      await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, ?)", nama, username, hashSandi(sandi), peran);
     }
 
     // [kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi]
@@ -43,7 +43,7 @@ export function isiDataContoh(sandi: string): void {
     ];
     const idAset: Record<string, number> = {};
     for (const a of aset) {
-      idAset[a[0]] = jalankan("INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...a);
+      idAset[a[0]] = await jalankan("INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...a);
     }
     // Keterangan tambahan untuk rincian barang di website: [kapasitas, cocok untuk]. Sama seperti data lain di
     // sini, angkanya contoh dan perlu diganti dengan ukuran yang sebenarnya.
@@ -60,13 +60,13 @@ export function isiDataContoh(sandi: string): void {
       "LP-01": ["", "acara malam"],
     };
     for (const [kode, [kapasitas, cocok]] of Object.entries(rincian)) {
-      jalankan("UPDATE aset SET kapasitas = ?, cocok = ? WHERE id = ?", kapasitas, cocok, idAset[kode]);
+      await jalankan("UPDATE aset SET kapasitas = ?, cocok = ? WHERE id = ?", kapasitas, cocok, idAset[kode]);
     }
     // Foto bawaan dari public/katalog. Menghapusnya dari halaman aset cukup menghapus baris ini.
     for (const [kode, berkas] of Object.entries(FOTO_ASET_CONTOH)) {
-      jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, ?, 1)", idAset[kode], berkas);
+      await jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, ?, 1)", idAset[kode], berkas);
     }
-    jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, 2, ?, 'Atap sobek, dijahit ulang')", idAset["TS-55"], tambahHari(hari, -3));
+    await jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, 2, ?, 'Atap sobek, dijahit ulang')", idAset["TS-55"], tambahHari(hari, -3));
 
     // [nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tindak lanjut (selisih hari) atau null]
     const kontak: [string, string, string, string, string, string, string, number | null][] = [
@@ -77,29 +77,32 @@ export function isiDataContoh(sandi: string): void {
       ["Sinta Contoh", "", "0811-0000-005", "perorangan", "Instagram", "dihubungi", "Syukuran rumah, 80 tamu", 0],
       ["Hendra Contoh", "PT Contoh Makmur", "0811-0000-006", "korporat", "website", "baru", "Tanggal acara belum pasti. Butuh tenda roder untuk peluncuran produk.", -1],
     ];
-    const idKontak = kontak.map(([nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tl], i) =>
-      jalankan(
-        "INSERT INTO kontak (nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tindak_lanjut, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tl === null ? null : tambahHari(hari, tl), tambahHari(hari, -80 + i * 12),
-      ),
-    );
+    const idKontak: number[] = [];
+    for (const [i, [nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tl]] of kontak.entries()) {
+      idKontak.push(
+        await jalankan(
+          "INSERT INTO kontak (nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tindak_lanjut, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tl === null ? null : tambahHari(hari, tl), tambahHari(hari, -80 + i * 12),
+        ),
+      );
+    }
 
     type Butir = [kode: string | null, deskripsi: string, jumlah: number, hari: number, harga?: number];
-    function pesanan(k: number, acara: string, lokasi: string, geser: number, lama: number, status: string, butir: Butir[], lunas: number, biaya: [string, number][]) {
+    async function pesanan(k: number, acara: string, lokasi: string, geser: number, lama: number, status: string, butir: Butir[], lunas: number, biaya: [string, number][]): Promise<void> {
       const mulai = tambahHari(hari, geser);
       const selesai = tambahHari(mulai, lama);
       const dibuat = tambahHari(mulai, -14);
       const dipesan = status !== "penawaran";
-      const id = jalankan(
+      const id = await jalankan(
         "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, status, tgl_faktur, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        nomorBerikut(dibuat), idKontak[k], acara, lokasi, mulai, selesai, status, status === "selesai" ? selesai : null, dibuat,
+        await nomorBerikut(dibuat), idKontak[k], acara, lokasi, mulai, selesai, status, status === "selesai" ? selesai : null, dibuat,
       );
       let total = 0;
       for (const [kode, deskripsi, jumlah, hr, harga] of butir) {
         const a = kode ? aset.find((x) => x[0] === kode)! : null;
         const h = harga ?? a?.[6] ?? 0;
         total += jumlah * hr * h;
-        jalankan(
+        await jalankan(
           "INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, ?, ?, ?, ?, ?)",
           id, kode ? idAset[kode] : null, deskripsi || `${a![1]} ${a![3]}`.trim(), jumlah, hr, h,
         );
@@ -107,40 +110,40 @@ export function isiDataContoh(sandi: string): void {
       if (!dipesan) return;
       // DP 50% saat booking, sisanya saat acara selesai.
       const dp = Math.round(total / 2);
-      if (lunas >= 1) jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah, catatan) VALUES (?, ?, ?, 'DP')", id, tambahHari(mulai, -10), dp);
-      if (lunas >= 2) jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah, catatan) VALUES (?, ?, ?, 'Pelunasan')", id, selesai, total - dp);
+      if (lunas >= 1) await jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah, catatan) VALUES (?, ?, ?, 'DP')", id, tambahHari(mulai, -10), dp);
+      if (lunas >= 2) await jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah, catatan) VALUES (?, ?, ?, 'Pelunasan')", id, selesai, total - dp);
       for (const [kategori, jumlah] of biaya) {
-        jalankan("INSERT INTO biaya (tanggal, jenis, kategori, pesanan_id, jumlah) VALUES (?, 'langsung', ?, ?, ?)", mulai, kategori, id, jumlah);
+        await jalankan("INSERT INTO biaya (tanggal, jenis, kategori, pesanan_id, jumlah) VALUES (?, 'langsung', ?, ?, ?)", mulai, kategori, id, jumlah);
       }
       const sudahPasang = status === "berjalan" || status === "selesai";
-      jalankan(
+      await jalankan(
         "INSERT INTO tugas (pesanan_id, jenis, tanggal, kru, checklist, selesai) VALUES (?, 'pasang', ?, ?, ?, ?)",
         id, mulai, "Tim A (4 orang)", beres(PENGATURAN_BAWAAN.checklist_pasang, sudahPasang), sudahPasang ? 1 : 0,
       );
-      jalankan(
+      await jalankan(
         "INSERT INTO tugas (pesanan_id, jenis, tanggal, kru, checklist, selesai) VALUES (?, 'bongkar', ?, ?, ?, ?)",
         id, selesai, status === "booking" ? "" : "Tim A (4 orang)", beres(PENGATURAN_BAWAAN.checklist_bongkar, status === "selesai"), status === "selesai" ? 1 : 0,
       );
     }
 
     const antar: Butir = [null, "Antar, pasang, dan bongkar", 1, 1, 1_500_000];
-    pesanan(0, "Gathering karyawan", "Lapangan Contoh, Kota Contoh", -72, 2, "selesai", [["TR-10", "", 4, 2], ["KS-01", "", 200, 2], ["AC-05", "", 4, 2], antar], 2, [["Transport", 1_200_000], ["Upah kru", 2_400_000]]);
-    pesanan(1, "Resepsi pernikahan", "Jl. Contoh No. 1", -41, 1, "selesai", [["TD-46", "", 6, 1], ["KS-01", "", 150, 1], ["MJ-01", "", 15, 1], antar], 2, [["Transport", 800_000], ["Upah kru", 1_600_000]]);
-    pesanan(2, "Pameran UMKM", "Alun-alun Contoh", -19, 3, "selesai", [["TS-33", "", 16, 3], ["TS-55", "", 4, 3], ["LP-01", "", 16, 3], antar], 2, [["Transport", 1_000_000], ["Upah kru", 2_000_000], ["Sewa genset", 1_500_000]]);
-    pesanan(0, "Peluncuran produk", "Halaman Kantor Contoh", -1, 2, "berjalan", [["TR-10", "", 3, 2], ["LT-01", "", 40, 2], ["AC-05", "", 3, 2], antar], 1, [["Transport", 900_000]]);
-    pesanan(2, "Bazar akhir pekan", "Parkir Mal Contoh", 5, 2, "booking", [["TS-55", "", 8, 2], ["KP-01", "", 6, 2], antar], 1, []);
-    pesanan(1, "Syukuran keluarga", "Jl. Contoh No. 1", 12, 1, "booking", [["TD-46", "", 3, 1], ["KS-01", "", 80, 1], antar], 0, []);
+    await pesanan(0, "Gathering karyawan", "Lapangan Contoh, Kota Contoh", -72, 2, "selesai", [["TR-10", "", 4, 2], ["KS-01", "", 200, 2], ["AC-05", "", 4, 2], antar], 2, [["Transport", 1_200_000], ["Upah kru", 2_400_000]]);
+    await pesanan(1, "Resepsi pernikahan", "Jl. Contoh No. 1", -41, 1, "selesai", [["TD-46", "", 6, 1], ["KS-01", "", 150, 1], ["MJ-01", "", 15, 1], antar], 2, [["Transport", 800_000], ["Upah kru", 1_600_000]]);
+    await pesanan(2, "Pameran UMKM", "Alun-alun Contoh", -19, 3, "selesai", [["TS-33", "", 16, 3], ["TS-55", "", 4, 3], ["LP-01", "", 16, 3], antar], 2, [["Transport", 1_000_000], ["Upah kru", 2_000_000], ["Sewa genset", 1_500_000]]);
+    await pesanan(0, "Peluncuran produk", "Halaman Kantor Contoh", -1, 2, "berjalan", [["TR-10", "", 3, 2], ["LT-01", "", 40, 2], ["AC-05", "", 3, 2], antar], 1, [["Transport", 900_000]]);
+    await pesanan(2, "Bazar akhir pekan", "Parkir Mal Contoh", 5, 2, "booking", [["TS-55", "", 8, 2], ["KP-01", "", 6, 2], antar], 1, []);
+    await pesanan(1, "Syukuran keluarga", "Jl. Contoh No. 1", 12, 1, "booking", [["TD-46", "", 3, 1], ["KS-01", "", 80, 1], antar], 0, []);
     // Penawaran ini sengaja bentrok dengan bazar akhir pekan supaya peringatan ketersediaan terlihat.
-    pesanan(3, "Wisuda", "Halaman Kampus Contoh", 6, 1, "penawaran", [["TR-10", "", 6, 1], ["TS-55", "", 6, 1], ["KS-01", "", 300, 1], antar], 0, []);
+    await pesanan(3, "Wisuda", "Halaman Kampus Contoh", 6, 1, "penawaran", [["TR-10", "", 6, 1], ["TS-55", "", 6, 1], ["KS-01", "", 300, 1], antar], 0, []);
 
     const bulan = hari.slice(0, 7);
     for (const n of [-2, -1, 0]) {
       const tgl = `${geserBulan(bulan, n)}-05`;
       if (tgl > hari) continue;
       for (const [kategori, jumlah] of [["Sewa gudang", 4_000_000], ["Gaji tim tetap", 9_000_000], ["Listrik dan air", 650_000]] as const) {
-        jalankan("INSERT INTO biaya (tanggal, jenis, kategori, jumlah) VALUES (?, 'operasional', ?, ?)", tgl, kategori, jumlah);
+        await jalankan("INSERT INTO biaya (tanggal, jenis, kategori, jumlah) VALUES (?, 'operasional', ?, ?)", tgl, kategori, jumlah);
       }
     }
-    kunciBulan(geserBulan(bulan, -2), new Date().toISOString());
+    await kunciBulan(geserBulan(bulan, -2), new Date().toISOString());
   });
 }

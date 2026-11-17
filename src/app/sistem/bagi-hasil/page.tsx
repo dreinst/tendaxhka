@@ -12,9 +12,11 @@ export const metadata: Metadata = { title: "Bagi hasil" };
 export default async function BagiHasil({ searchParams }: { searchParams: Cari }) {
   const u = await wajib("keuangan.lihat");
   const tulis = boleh(u.peran, "keuangan.tulis");
-  const s = pengaturan();
   const kini = hariIni().slice(0, 7);
-  const periode = Array.from({ length: 12 }, (_, i) => labaBulan(geserBulan(kini, -i)));
+  const [s, periode] = await Promise.all([
+    pengaturan(),
+    Promise.all(Array.from({ length: 12 }, (_, i) => labaBulan(geserBulan(kini, -i)))),
+  ]);
   const tutup = periode.filter((p) => p.dikunci);
   const utang = {
     tenda: tutup.reduce((n, p) => n + p.bagianTenda - p.dibayarTenda, 0),

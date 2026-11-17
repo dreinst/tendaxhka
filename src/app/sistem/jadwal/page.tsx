@@ -16,7 +16,7 @@ export default async function Jadwal({ searchParams }: { searchParams: Cari }) {
   const lihatPesanan = boleh(u.peran, "pesanan.lihat");
   const hari = hariIni();
   // Tugas yang belum selesai tetap tampil walau tanggalnya sudah lewat. Yang selesai tampil 7 hari terakhir.
-  const tugas = semua<Tugas>(
+  const tugas = await semua<Tugas>(
     `SELECT t.*, p.nomor, p.acara, p.lokasi FROM tugas t JOIN pesanan p ON p.id = t.pesanan_id
      WHERE p.status <> 'batal' AND ((t.selesai = 0 AND t.tanggal <= ?) OR (t.selesai = 1 AND t.tanggal >= ?))
      ORDER BY t.selesai, t.tanggal, t.id`,

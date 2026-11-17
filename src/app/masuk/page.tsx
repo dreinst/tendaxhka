@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Masuk", robots: { index: false, foll
 export default async function Masuk({ searchParams }: { searchParams: Cari }) {
   if (await penggunaSaatIni()) redirect("/sistem");
   const galat = nilai((await searchParams).galat);
-  const pertama = !satu("SELECT 1 FROM pengguna LIMIT 1");
+  const pertama = !(await satu("SELECT 1 FROM pengguna LIMIT 1"));
   return (
     <main className="grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm">

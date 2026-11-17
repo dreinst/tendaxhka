@@ -14,7 +14,7 @@ export default async function JejakAudit({ searchParams }: { searchParams: Cari 
   const bulan = bulanSah(minta) ? minta : hariIni().slice(0, 7);
   const sebelumnya = geserBulanSah(bulan, -1);
   const berikutnya = geserBulanSah(bulan, 1);
-  const log = daftarLog(bulan);
+  const log = await daftarLog(bulan);
   return (
     <>
       <Kepala judul="Jejak audit" ket={`Siapa mengubah apa di ${namaBulan(bulan)}. Catatan ini tidak bisa diubah atau dihapus dari aplikasi.`}>

@@ -36,14 +36,14 @@ export type Aset = {
 export type Foto = { id: number; aset_id: number; berkas: string; urutan: number };
 
 // Foto satu aset, sampul lebih dulu.
-export function fotoAset(asetId: number): Foto[] {
+export function fotoAset(asetId: number): Promise<Foto[]> {
   return semua<Foto>("SELECT * FROM aset_foto WHERE aset_id = ? ORDER BY urutan, id", asetId);
 }
 
 // Nama berkas foto semua aset, dikelompokkan per aset, untuk katalog dan daftar aset.
-export function fotoPerAset(): Map<number, string[]> {
+export async function fotoPerAset(): Promise<Map<number, string[]>> {
   const hasil = new Map<number, string[]>();
-  for (const f of semua<Foto>("SELECT * FROM aset_foto ORDER BY urutan, id")) {
+  for (const f of await semua<Foto>("SELECT * FROM aset_foto ORDER BY urutan, id")) {
     hasil.set(f.aset_id, [...(hasil.get(f.aset_id) ?? []), f.berkas]);
   }
   return hasil;
@@ -138,9 +138,9 @@ export const PENGATURAN_BAWAAN = {
 
 export type Pengaturan = Record<keyof typeof PENGATURAN_BAWAAN, string>;
 
-export function pengaturan(): Pengaturan {
+export async function pengaturan(): Promise<Pengaturan> {
   const hasil: Record<string, string> = { ...PENGATURAN_BAWAAN };
-  for (const b of semua<{ kunci: string; nilai: string }>("SELECT kunci, nilai FROM pengaturan")) {
+  for (const b of await semua<{ kunci: string; nilai: string }>("SELECT kunci, nilai FROM pengaturan")) {
     if (b.kunci in hasil) hasil[b.kunci] = b.nilai;
   }
   return hasil as Pengaturan;
@@ -149,8 +149,8 @@ export function pengaturan(): Pengaturan {
 // Harga, total, dan pembayaran pesanan, termasuk dokumen cetak yang memuat telepon dan email pelanggan.
 // Peran gudang cukup tahu barang, jumlah, tanggal, dan lokasi, jadi angka itu tertutup untuknya kecuali
 // dibuka di halaman Pengaturan.
-export function lihatNilai(peran: Peran): boolean {
-  return boleh(peran, "nilai.lihat") || (peran === "gudang" && pengaturan().gudang_lihat_nilai === "ya");
+export async function lihatNilai(peran: Peran): Promise<boolean> {
+  return boleh(peran, "nilai.lihat") || (peran === "gudang" && (await pengaturan()).gudang_lihat_nilai === "ya");
 }
 
 const PILIH_PESANAN = `
@@ -165,16 +165,16 @@ function lengkapi(p: Pesanan): Pesanan {
   return p;
 }
 
-export function daftarPesanan(syarat = "", ...p: (string | number)[]): Pesanan[] {
-  return semua<Pesanan>(`${PILIH_PESANAN} ${syarat}`, ...p).map(lengkapi);
+export async function daftarPesanan(syarat = "", ...p: (string | number)[]): Promise<Pesanan[]> {
+  return (await semua<Pesanan>(`${PILIH_PESANAN} ${syarat}`, ...p)).map(lengkapi);
 }
 
-export function ambilPesanan(id: number): Pesanan | undefined {
-  const p = satu<Pesanan>(`${PILIH_PESANAN} WHERE p.id = ?`, id);
+export async function ambilPesanan(id: number): Promise<Pesanan | undefined> {
+  const p = await satu<Pesanan>(`${PILIH_PESANAN} WHERE p.id = ?`, id);
   return p && lengkapi(p);
 }
 
-export function barisPesanan(id: number): BarisPesanan[] {
+export function barisPesanan(id: number): Promise<BarisPesanan[]> {
   return semua<BarisPesanan>("SELECT * FROM pesanan_baris WHERE pesanan_id = ? ORDER BY id", id);
 }
 
@@ -183,11 +183,11 @@ type IsiPesanan = { baris: { asetId: number | null; deskripsi: string; jumlah: n
 // Pemeriksaan sebelum pesanan yang sudah ada disimpan ulang. Pesan galat, atau null kalau boleh disimpan.
 // Total baru tidak boleh lebih kecil dari uang yang sudah dibayar, dan sesudah faktur terbit baris, diskon,
 // dan tanggal dikunci.
-export function galatUbahPesanan(id: number, baru: IsiPesanan): string | null {
-  const p = ambilPesanan(id);
+export async function galatUbahPesanan(id: number, baru: IsiPesanan): Promise<string | null> {
+  const p = await ambilPesanan(id);
   if (!p) return "Pesanan tidak ditemukan.";
   if (p.tgl_faktur) {
-    const lama = barisPesanan(id).map((b) => [b.aset_id, b.deskripsi, b.jumlah, b.hari, b.harga]);
+    const lama = (await barisPesanan(id)).map((b) => [b.aset_id, b.deskripsi, b.jumlah, b.hari, b.harga]);
     const isi = baru.baris.map((b) => [b.asetId, b.deskripsi, b.jumlah, b.hari, b.harga]);
     if (JSON.stringify(lama) !== JSON.stringify(isi) || p.diskon !== baru.diskon || p.mulai !== baru.mulai || p.selesai !== baru.selesai) {
       return "Faktur sudah terbit, jadi baris, diskon, dan tanggal pesanan tidak bisa diubah.";
@@ -208,24 +208,24 @@ export function galatStatus(p: Pesanan, tujuan: string): string | null {
 }
 
 // Mengubah status. Pesanan yang kembali ke penawaran kehilangan tanggal fakturnya.
-export function setStatusPesanan(id: number, tujuan: string): void {
-  jalankan("UPDATE pesanan SET status = ?, tgl_faktur = CASE WHEN ? = 'penawaran' THEN NULL ELSE tgl_faktur END WHERE id = ?", tujuan, tujuan, id);
+export async function setStatusPesanan(id: number, tujuan: string): Promise<void> {
+  await jalankan("UPDATE pesanan SET status = ?, tgl_faktur = CASE WHEN ? = 'penawaran' THEN NULL ELSE tgl_faktur END WHERE id = ?", tujuan, tujuan, id);
 }
 
 // Mencabut semua sesi akun kecuali sesi yang sedang dipakai (hash token cookie saat ini, boleh kosong).
-export function cabutSesiLain(penggunaId: number, hashSaatIni: string | null): void {
-  jalankan("DELETE FROM sesi WHERE pengguna_id = ? AND token <> ?", penggunaId, hashSaatIni ?? "");
+export async function cabutSesiLain(penggunaId: number, hashSaatIni: string | null): Promise<void> {
+  await jalankan("DELETE FROM sesi WHERE pengguna_id = ? AND token <> ?", penggunaId, hashSaatIni ?? "");
 }
 
 // Menyalin pesanan menjadi penawaran baru di tanggal lain, lengkap dengan jejak audit. Mengembalikan id baru.
-export function salinPesanan(oleh: { id: number; nama: string }, id: number, mulai: string, selesai: string): number {
-  const p = ambilPesanan(id);
+export async function salinPesanan(oleh: { id: number; nama: string }, id: number, mulai: string, selesai: string): Promise<number> {
+  const p = await ambilPesanan(id);
   if (!p) throw new Error("Pesanan sumber tidak ditemukan.");
-  return transaksi(() => {
+  return transaksi(async () => {
     const hari = hariIni();
-    const baru = jalankan(
+    const baru = await jalankan(
       "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, diskon, catatan, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      nomorBerikut(hari),
+      await nomorBerikut(hari),
       p.kontak_id,
       p.acara,
       p.lokasi,
@@ -235,8 +235,8 @@ export function salinPesanan(oleh: { id: number; nama: string }, id: number, mul
       p.catatan,
       hari,
     );
-    for (const b of barisPesanan(id)) {
-      jalankan(
+    for (const b of await barisPesanan(id)) {
+      await jalankan(
         "INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, ?, ?, ?, ?, ?)",
         baru,
         b.aset_id,
@@ -246,27 +246,27 @@ export function salinPesanan(oleh: { id: number; nama: string }, id: number, mul
         b.harga,
       );
     }
-    const salinan = ambilPesanan(baru)!;
-    catatLog(oleh, "Salin pesanan", `${salinan.nomor} dari ${p.nomor}, ${mulai} sampai ${selesai}, total ${rupiah(salinan.total)}`);
+    const salinan = (await ambilPesanan(baru))!;
+    await catatLog(oleh, "Salin pesanan", `${salinan.nomor} dari ${p.nomor}, ${mulai} sampai ${selesai}, total ${rupiah(salinan.total)}`);
     return baru;
   });
 }
 
-export function nomorBerikut(hari: string): string {
+export async function nomorBerikut(hari: string): Promise<string> {
   const awalan = `TI-${hari.slice(2, 4)}${hari.slice(5, 7)}-`;
-  const akhir = satu<{ nomor: string }>("SELECT nomor FROM pesanan WHERE nomor LIKE ? ORDER BY nomor DESC LIMIT 1", `${awalan}%`);
+  const akhir = await satu<{ nomor: string }>("SELECT nomor FROM pesanan WHERE nomor LIKE ? ORDER BY nomor DESC LIMIT 1", `${awalan}%`);
   const urut = akhir ? Number(akhir.nomor.slice(awalan.length)) + 1 : 1;
   return awalan + String(urut).padStart(3, "0");
 }
 
 // Pemakaian aset yang bersinggungan dengan satu rentang tanggal. Penawaran belum mengunci aset.
-export function daftarPakai(
+export async function daftarPakai(
   awal: string,
   akhir: string,
   opsi: { kecualiPesanan?: number; perawatan?: boolean; status?: string[] } = {},
-): Pakai[] {
+): Promise<Pakai[]> {
   const status = opsi.status ?? ["booking", "berjalan"];
-  const sewa = semua<Pakai>(
+  const sewa = await semua<Pakai>(
     `SELECT b.aset_id AS asetId, b.jumlah, p.mulai AS awal, p.selesai AS akhir
      FROM pesanan_baris b JOIN pesanan p ON p.id = b.pesanan_id
      WHERE b.aset_id IS NOT NULL AND p.status IN (${status.map(() => "?").join(",")})
@@ -277,7 +277,7 @@ export function daftarPakai(
     opsi.kecualiPesanan ?? 0,
   );
   if (opsi.perawatan === false) return sewa;
-  const rawat = semua<Pakai>(
+  const rawat = await semua<Pakai>(
     `SELECT aset_id AS asetId, jumlah, mulai AS awal, selesai AS akhir FROM perawatan
      WHERE mulai <= ? AND (selesai IS NULL OR selesai >= ?)`,
     akhir,
@@ -289,41 +289,43 @@ export function daftarPakai(
 // Hari terpadat untuk satu aset sejak tanggal awal sampai booking terakhirnya selesai, menghitung booking
 // yang sudah mengunci aset dan unit yang sedang diperbaiki. Dipakai sebelum stok berkurang (perawatan
 // baru atau jumlah aset diturunkan) untuk tahu apakah booking yang sudah ada jadi kekurangan.
-export function hariTerpadat(asetId: number, awal: string): { tanggal: string; jumlah: number } | null {
-  const ujung = satu<{ t: string | null }>(
+export async function hariTerpadat(asetId: number, awal: string): Promise<{ tanggal: string; jumlah: number } | null> {
+  const ujung = (
+    await satu<{ t: string | null }>(
     `SELECT MAX(p.selesai) AS t FROM pesanan_baris b JOIN pesanan p ON p.id = b.pesanan_id
      WHERE b.aset_id = ? AND p.status IN ('booking', 'berjalan') AND p.selesai >= ?`,
-    asetId,
-    awal,
+      asetId,
+      awal,
+    )
   )?.t;
   if (!ujung) return null;
   const hari = rentangHari(awal, ujung);
-  const per = pakaiPerHari(daftarPakai(awal, ujung), asetId, hari);
+  const per = pakaiPerHari(await daftarPakai(awal, ujung), asetId, hari);
   const i = per.indexOf(Math.max(...per));
   return { tanggal: hari[i], jumlah: per[i] };
 }
 
 // Jumlah unit satu aset yang masih diperbaiki pada atau sesudah tanggal tertentu. Perawatan tanpa tanggal
 // selesai dihitung terus sampai ditandai selesai.
-export function unitDirawat(asetId: number, sejak: string): number {
-  return satu<{ n: number }>(
+export async function unitDirawat(asetId: number, sejak: string): Promise<number> {
+  return (await satu<{ n: number }>(
     "SELECT COALESCE(SUM(jumlah), 0) AS n FROM perawatan WHERE aset_id = ? AND (selesai IS NULL OR selesai >= ?)",
     asetId,
     sejak,
-  )!.n;
+  ))!.n;
 }
 
 // Daftar aset yang tidak cukup untuk pesanan ini di rentang tanggalnya. Kosong berarti aman dibooking.
-export function kekurangan(pesananId: number): string[] {
-  const p = satu<{ mulai: string; selesai: string }>("SELECT mulai, selesai FROM pesanan WHERE id = ?", pesananId);
+export async function kekurangan(pesananId: number): Promise<string[]> {
+  const p = await satu<{ mulai: string; selesai: string }>("SELECT mulai, selesai FROM pesanan WHERE id = ?", pesananId);
   if (!p) return [];
-  const butuh = semua<{ aset_id: number; nama: string; total: number; butuh: number }>(
+  const butuh = await semua<{ aset_id: number; nama: string; total: number; butuh: number }>(
     `SELECT b.aset_id, a.nama || CASE WHEN a.ukuran <> '' THEN ' ' || a.ukuran ELSE '' END AS nama, a.jumlah AS total,
        SUM(b.jumlah) AS butuh
      FROM pesanan_baris b JOIN aset a ON a.id = b.aset_id WHERE b.pesanan_id = ? GROUP BY b.aset_id`,
     pesananId,
   );
-  const pakai = daftarPakai(p.mulai, p.selesai, { kecualiPesanan: pesananId });
+  const pakai = await daftarPakai(p.mulai, p.selesai, { kecualiPesanan: pesananId });
   const kurang: string[] = [];
   for (const b of butuh) {
     const sisa = sisaTersedia(b.total, pakai, b.aset_id, p.mulai, p.selesai);
@@ -332,18 +334,18 @@ export function kekurangan(pesananId: number): string[] {
   return kurang;
 }
 
-export function pendapatanBulan(bulan: string, basis: string): number {
+export async function pendapatanBulan(bulan: string, basis: string): Promise<number> {
   const { awal, akhir } = batasBulan(bulan);
   if (basis === "akrual") {
-    return daftarPesanan("WHERE p.status NOT IN ('batal', 'penawaran') AND p.tgl_faktur BETWEEN ? AND ?", awal, akhir).reduce((s, p) => s + p.total, 0);
+    return (await daftarPesanan("WHERE p.status NOT IN ('batal', 'penawaran') AND p.tgl_faktur BETWEEN ? AND ?", awal, akhir)).reduce((s, p) => s + p.total, 0);
   }
-  return satu<{ n: number }>("SELECT COALESCE(SUM(jumlah), 0) AS n FROM pembayaran WHERE tanggal BETWEEN ? AND ?", awal, akhir)!.n;
+  return (await satu<{ n: number }>("SELECT COALESCE(SUM(jumlah), 0) AS n FROM pembayaran WHERE tanggal BETWEEN ? AND ?", awal, akhir))!.n;
 }
 
-export function biayaBulan(bulan: string): { langsung: number; operasional: number } {
+export async function biayaBulan(bulan: string): Promise<{ langsung: number; operasional: number }> {
   const { awal, akhir } = batasBulan(bulan);
   const hasil = { langsung: 0, operasional: 0 };
-  for (const b of semua<{ jenis: "langsung" | "operasional"; n: number }>(
+  for (const b of await semua<{ jenis: "langsung" | "operasional"; n: number }>(
     "SELECT jenis, SUM(jumlah) AS n FROM biaya WHERE tanggal BETWEEN ? AND ? GROUP BY jenis",
     awal,
     akhir,
@@ -378,8 +380,8 @@ type BarisPeriode = {
 };
 
 // Bulan yang sudah ditutup memakai angka beku. Bulan terbuka dihitung ulang dari transaksi.
-export function labaBulan(bulan: string): Periode {
-  const k = satu<BarisPeriode>("SELECT * FROM periode WHERE bulan = ?", bulan);
+export async function labaBulan(bulan: string): Promise<Periode> {
+  const k = await satu<BarisPeriode>("SELECT * FROM periode WHERE bulan = ?", bulan);
   if (k) {
     return {
       bulan,
@@ -397,10 +399,10 @@ export function labaBulan(bulan: string): Periode {
       catatan: k.catatan,
     };
   }
-  const s = pengaturan();
-  const biaya = biayaBulan(bulan);
+  const s = await pengaturan();
+  const biaya = await biayaBulan(bulan);
   const hasil = hitungLaba({
-    pendapatan: pendapatanBulan(bulan, s.basis),
+    pendapatan: await pendapatanBulan(bulan, s.basis),
     biayaLangsung: biaya.langsung,
     biayaOperasional: biaya.operasional,
     persenCadangan: Number(s.persen_cadangan) || 0,
@@ -410,14 +412,14 @@ export function labaBulan(bulan: string): Periode {
   return { ...hasil, bulan, dikunci: null, dibayarTenda: 0, dibayarHka: 0, catatan: "" };
 }
 
-export function bulanTerkunci(tanggal: string): boolean {
-  return !!satu("SELECT 1 FROM periode WHERE bulan = ?", tanggal.slice(0, 7));
+export async function bulanTerkunci(tanggal: string): Promise<boolean> {
+  return !!(await satu("SELECT 1 FROM periode WHERE bulan = ?", tanggal.slice(0, 7)));
 }
 
 // Waktu kunci memakai waktu WIB, sama dengan jejak audit, supaya tanggalnya tidak bergeser sehari.
-export function kunciBulan(bulan: string, waktu: string = waktuKini()): void {
-  const l = labaBulan(bulan);
-  jalankan(
+export async function kunciBulan(bulan: string, waktu: string = waktuKini()): Promise<void> {
+  const l = await labaBulan(bulan);
+  await jalankan(
     `INSERT INTO periode (bulan, pendapatan, biaya_langsung, biaya_operasional, cadangan, pajak, laba_bersih,
        bagian_tenda, bagian_hka, dikunci) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     bulan,
@@ -436,10 +438,10 @@ export function kunciBulan(bulan: string, waktu: string = waktuKini()): void {
 export { totalPesanan };
 
 // Utilisasi per aset dalam satu bulan, dihitung dari pesanan yang dibooking, berjalan, atau selesai.
-export function utilisasiBulan(bulan: string): { baris: { aset: Aset; nilai: number }[]; rata: number } {
+export async function utilisasiBulan(bulan: string): Promise<{ baris: { aset: Aset; nilai: number }[]; rata: number }> {
   const { awal, akhir } = batasBulan(bulan);
-  const sewa = daftarPakai(awal, akhir, { perawatan: false, status: ["booking", "berjalan", "selesai"] });
-  const aset = semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND jumlah > 0 ORDER BY kategori, nama, ukuran");
+  const sewa = await daftarPakai(awal, akhir, { perawatan: false, status: ["booking", "berjalan", "selesai"] });
+  const aset = await semua<Aset>("SELECT * FROM aset WHERE aktif = 1 AND jumlah > 0 ORDER BY kategori, nama, ukuran");
   const baris = aset.map((a) => ({ aset: a, nilai: utilisasi(a.jumlah, sewa, a.id, bulan) }));
   const unit = aset.reduce((s, a) => s + a.jumlah, 0);
   const rata = unit ? baris.reduce((s, b) => s + b.nilai * b.aset.jumlah, 0) / unit : 0;
@@ -450,8 +452,8 @@ export function utilisasiBulan(bulan: string): { baris: { aset: Aset; nilai: num
 
 export type Log = { id: number; waktu: string; pengguna: string; aksi: string; rincian: string };
 
-export function catatLog(oleh: { id: number; nama: string }, aksi: string, rincian = ""): void {
-  jalankan(
+export async function catatLog(oleh: { id: number; nama: string }, aksi: string, rincian = ""): Promise<void> {
+  await jalankan(
     "INSERT INTO log_aktivitas (waktu, pengguna_id, pengguna, aksi, rincian) VALUES (?, ?, ?, ?, ?)",
     waktuKini(),
     oleh.id,
@@ -461,6 +463,6 @@ export function catatLog(oleh: { id: number; nama: string }, aksi: string, rinci
   );
 }
 
-export function daftarLog(bulan: string): Log[] {
+export function daftarLog(bulan: string): Promise<Log[]> {
   return semua<Log>("SELECT id, waktu, pengguna, aksi, rincian FROM log_aktivitas WHERE waktu LIKE ? ORDER BY id DESC", `${bulan}-%`);
 }

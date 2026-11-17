@@ -13,8 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function Produk({ searchParams }: { searchParams: Cari }) {
-  const { s, wa, sapa } = identitasSitus();
-  const barang = barangKatalog();
+  const [{ s, wa, sapa }, barang] = await Promise.all([identitasSitus(), barangKatalog()]);
   return (
     <>
       <KepalaSitus nama={s.nama_usaha} wa={wa} sapa={sapa} aktif="produk" />

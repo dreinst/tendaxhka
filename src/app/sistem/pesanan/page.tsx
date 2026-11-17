@@ -11,11 +11,11 @@ export const metadata: Metadata = { title: "Pesanan" };
 export default async function HalamanPesanan({ searchParams }: { searchParams: Cari }) {
   const u = await wajib("pesanan.lihat");
   const sp = await searchParams;
-  const tampakNilai = lihatNilai(u.peran);
+  const tampakNilai = await lihatNilai(u.peran);
   const status = nilai(sp.status) in LABEL_STATUS ? nilai(sp.status) : "";
-  const pesanan = status
+  const pesanan = await (status
     ? daftarPesanan("WHERE p.status = ? ORDER BY p.mulai DESC LIMIT 200", status)
-    : daftarPesanan("WHERE p.status <> 'batal' ORDER BY p.mulai DESC LIMIT 200");
+    : daftarPesanan("WHERE p.status <> 'batal' ORDER BY p.mulai DESC LIMIT 200"));
   return (
     <>
       <Kepala judul="Pesanan" ket="Dari penawaran, booking, pelaksanaan, sampai faktur lunas.">

@@ -19,20 +19,23 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
   const sebelumnya = geserBulanSah(bulan, -1);
   const berikutnya = geserBulanSah(bulan, 1);
   const { awal, akhir } = batasBulan(bulan);
-  const laba = labaBulan(bulan);
-  const basis = pengaturan().basis;
-  const biaya = semua<Biaya>(
-    "SELECT b.*, p.nomor FROM biaya b LEFT JOIN pesanan p ON p.id = b.pesanan_id WHERE b.tanggal BETWEEN ? AND ? ORDER BY b.tanggal, b.id",
-    awal,
-    akhir,
-  );
-  const masuk = semua<{ id: number; tanggal: string; jumlah: number; metode: string; catatan: string; pesanan_id: number; nomor: string; acara: string }>(
-    `SELECT b.*, p.nomor, p.acara FROM pembayaran b JOIN pesanan p ON p.id = b.pesanan_id
-     WHERE b.tanggal BETWEEN ? AND ? ORDER BY b.tanggal, b.id`,
-    awal,
-    akhir,
-  );
-  const piutang = daftarPesanan("WHERE p.status IN ('booking', 'berjalan', 'selesai') ORDER BY p.mulai").filter((p) => p.sisa > 0);
+  const [laba, { basis }, biaya, masuk, aktif] = await Promise.all([
+    labaBulan(bulan),
+    pengaturan(),
+    semua<Biaya>(
+      "SELECT b.*, p.nomor FROM biaya b LEFT JOIN pesanan p ON p.id = b.pesanan_id WHERE b.tanggal BETWEEN ? AND ? ORDER BY b.tanggal, b.id",
+      awal,
+      akhir,
+    ),
+    semua<{ id: number; tanggal: string; jumlah: number; metode: string; catatan: string; pesanan_id: number; nomor: string; acara: string }>(
+      `SELECT b.*, p.nomor, p.acara FROM pembayaran b JOIN pesanan p ON p.id = b.pesanan_id
+       WHERE b.tanggal BETWEEN ? AND ? ORDER BY b.tanggal, b.id`,
+      awal,
+      akhir,
+    ),
+    daftarPesanan("WHERE p.status IN ('booking', 'berjalan', 'selesai') ORDER BY p.mulai"),
+  ]);
+  const piutang = aktif.filter((p) => p.sisa > 0);
   return (
     <>
       <Kepala judul="Keuangan" ket={`${namaBulan(bulan)}. Pendapatan dihitung dengan basis ${basis === "kas" ? "kas (uang yang diterima)" : "akrual (faktur yang terbit)"}.`}>

@@ -14,15 +14,17 @@ export const metadata: Metadata = { title: "Aset" };
 
 export default async function DetailAset({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
   const u = await wajib("aset.lihat");
-  const a = satu<Aset>("SELECT * FROM aset WHERE id = ?", Number((await params).id) || 0);
+  const a = await satu<Aset>("SELECT * FROM aset WHERE id = ?", Number((await params).id) || 0);
   if (!a) notFound();
   const tulis = boleh(u.peran, "aset.tulis");
-  const foto = fotoAset(a.id);
   const sp = await searchParams;
-  const rawat = semua<{ id: number; jumlah: number; mulai: string; selesai: string | null; catatan: string }>(
-    "SELECT * FROM perawatan WHERE aset_id = ? ORDER BY selesai IS NOT NULL, mulai DESC LIMIT 30",
-    a.id,
-  );
+  const [foto, rawat] = await Promise.all([
+    fotoAset(a.id),
+    semua<{ id: number; jumlah: number; mulai: string; selesai: string | null; catatan: string }>(
+      "SELECT * FROM perawatan WHERE aset_id = ? ORDER BY selesai IS NOT NULL, mulai DESC LIMIT 30",
+      a.id,
+    ),
+  ]);
   return (
     <>
       <Kepala judul={`${a.nama} ${a.ukuran}`} ket={`${a.kode}. ${a.jumlah} ${a.satuan}, ${rupiah(a.harga)} per hari.`} />

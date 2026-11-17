@@ -24,34 +24,37 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
   const lihatUang = boleh(u.peran, "keuangan.lihat");
   const lihatKontak = boleh(u.peran, "kontak.lihat");
   const lihatPesanan = boleh(u.peran, "pesanan.lihat");
-  const tampakNilai = lihatNilai(u.peran);
 
-  const laba = lihatUang ? labaBulan(bulan) : null;
-  const tren = lihatUang ? [-5, -4, -3, -2, -1, 0].map((n) => labaBulan(geserBulan(bulan, n))) : [];
+  // Kueri di bawah tidak saling bergantung, jadi dijalankan bersamaan. Di basis data jarak jauh setiap kueri
+  // satu perjalanan jaringan.
+  const [tampakNilai, laba, tren, util, aktif, terbuka, tahap, berulang, tindak, jadwal] = await Promise.all([
+    lihatNilai(u.peran),
+    lihatUang ? labaBulan(bulan) : null,
+    lihatUang ? Promise.all([-5, -4, -3, -2, -1, 0].map((n) => labaBulan(geserBulan(bulan, n)))) : [],
+    utilisasiBulan(bulan),
+    lihatPesanan ? daftarPesanan("WHERE p.status IN ('booking', 'berjalan', 'selesai')") : [],
+    lihatPesanan ? daftarPesanan("WHERE p.status = 'penawaran'") : [],
+    lihatKontak ? semua<{ tahap: string; n: number }>("SELECT tahap, COUNT(*) AS n FROM kontak GROUP BY tahap") : [],
+    lihatKontak
+      ? satu<{ n: number }>(
+          `SELECT COUNT(*) AS n FROM (SELECT kontak_id FROM pesanan WHERE status IN ('booking', 'berjalan', 'selesai')
+           GROUP BY kontak_id HAVING COUNT(*) > 1)`,
+        ).then((b) => b!.n)
+      : 0,
+    lihatKontak
+      ? semua<Kontak>("SELECT * FROM kontak WHERE tindak_lanjut <= ? AND tahap NOT IN ('menang', 'kalah') ORDER BY tindak_lanjut LIMIT 8", hari)
+      : [],
+    semua<Tugas>(
+      `SELECT t.*, p.nomor, p.acara, p.lokasi FROM tugas t JOIN pesanan p ON p.id = t.pesanan_id
+       WHERE t.selesai = 0 AND p.status <> 'batal' AND t.tanggal <= ? ORDER BY t.tanggal LIMIT 10`,
+      tambahHari(hari, 7),
+    ),
+  ]);
+
   const puncak = Math.max(1, ...tren.map((t) => Math.max(t.pendapatan, t.biayaLangsung + t.biayaOperasional)));
-  const util = utilisasiBulan(bulan);
-
-  const aktif = lihatPesanan ? daftarPesanan("WHERE p.status IN ('booking', 'berjalan', 'selesai')") : [];
   const piutang = aktif.reduce((s, p) => s + Math.max(0, p.sisa), 0);
-  const terbuka = lihatPesanan ? daftarPesanan("WHERE p.status = 'penawaran'") : [];
-
-  const tahap = lihatKontak ? semua<{ tahap: string; n: number }>("SELECT tahap, COUNT(*) AS n FROM kontak GROUP BY tahap") : [];
   const hitung = (t: string) => tahap.find((x) => x.tahap === t)?.n ?? 0;
   const putus = hitung("menang") + hitung("kalah");
-  const berulang = lihatKontak
-    ? satu<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM (SELECT kontak_id FROM pesanan WHERE status IN ('booking', 'berjalan', 'selesai')
-         GROUP BY kontak_id HAVING COUNT(*) > 1)`,
-      )!.n
-    : 0;
-  const tindak = lihatKontak
-    ? semua<Kontak>("SELECT * FROM kontak WHERE tindak_lanjut <= ? AND tahap NOT IN ('menang', 'kalah') ORDER BY tindak_lanjut LIMIT 8", hari)
-    : [];
-  const jadwal = semua<Tugas>(
-    `SELECT t.*, p.nomor, p.acara, p.lokasi FROM tugas t JOIN pesanan p ON p.id = t.pesanan_id
-     WHERE t.selesai = 0 AND p.status <> 'batal' AND t.tanggal <= ? ORDER BY t.tanggal LIMIT 10`,
-    tambahHari(hari, 7),
-  );
 
   return (
     <>

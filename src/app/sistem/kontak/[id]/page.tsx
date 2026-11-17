@@ -13,10 +13,10 @@ export const metadata: Metadata = { title: "Kontak" };
 
 export default async function DetailKontak({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
   const u = await wajib("kontak.lihat");
-  const k = satu<Kontak>("SELECT * FROM kontak WHERE id = ?", Number((await params).id) || 0);
+  const k = await satu<Kontak>("SELECT * FROM kontak WHERE id = ?", Number((await params).id) || 0);
   if (!k) notFound();
   const galat = nilai((await searchParams).galat);
-  const pesanan = daftarPesanan("WHERE p.kontak_id = ? ORDER BY p.mulai DESC", k.id);
+  const pesanan = await daftarPesanan("WHERE p.kontak_id = ? ORDER BY p.mulai DESC", k.id);
   return (
     <>
       <Kepala judul={k.nama} ket={`${k.perusahaan || "Perorangan"}. Masuk ${tanggal(k.dibuat)}${k.sumber && ` lewat ${k.sumber}`}.`}>

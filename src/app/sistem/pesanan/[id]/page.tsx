@@ -33,28 +33,39 @@ const LANGKAH: Record<string, { ke: string; teks: string; utama?: boolean }[]> =
 
 export default async function DetailPesanan({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
   const u = await wajib("pesanan.lihat");
-  const p = ambilPesanan(Number((await params).id) || 0);
+  const p = await ambilPesanan(Number((await params).id) || 0);
   if (!p) notFound();
   const galat = nilai((await searchParams).galat);
   const tulis = boleh(u.peran, "pesanan.tulis");
   const lihatUang = boleh(u.peran, "keuangan.lihat");
-  const tampakNilai = lihatNilai(u.peran);
   const tulisUang = boleh(u.peran, "keuangan.tulis");
   const tulisJadwal = boleh(u.peran, "jadwal.tulis");
   const bisaUbah = tulis && p.status !== "selesai" && p.status !== "batal";
   const dipesan = p.status !== "penawaran" && p.status !== "batal";
 
-  const baris = barisPesanan(p.id);
-  const kurang = p.status === "penawaran" ? kekurangan(p.id) : [];
-  const bayar = tampakNilai
-    ? semua<{ id: number; tanggal: string; jumlah: number; metode: string; catatan: string }>(
-        "SELECT * FROM pembayaran WHERE pesanan_id = ? ORDER BY tanggal, id",
-        p.id,
-      )
-    : [];
-  const biaya = lihatUang ? semua<Biaya>("SELECT *, NULL AS nomor FROM biaya WHERE pesanan_id = ? ORDER BY tanggal, id", p.id) : [];
+  // Kueri di bawah tidak saling bergantung, jadi dijalankan bersamaan. Pembayaran hanya diambil kalau akun ini
+  // boleh melihat nilai pesanan.
+  const nilaiTampak = lihatNilai(u.peran);
+  const [tampakNilai, baris, kurang, bayar, biaya, tugas, pilihan] = await Promise.all([
+    nilaiTampak,
+    barisPesanan(p.id),
+    p.status === "penawaran" ? kekurangan(p.id) : [],
+    nilaiTampak.then((tampak) =>
+      tampak
+        ? semua<{ id: number; tanggal: string; jumlah: number; metode: string; catatan: string }>(
+            "SELECT * FROM pembayaran WHERE pesanan_id = ? ORDER BY tanggal, id",
+            p.id,
+          )
+        : [],
+    ),
+    lihatUang ? semua<Biaya>("SELECT *, NULL AS nomor FROM biaya WHERE pesanan_id = ? ORDER BY tanggal, id", p.id) : [],
+    semua<Tugas>("SELECT *, '' AS nomor, '' AS acara, '' AS lokasi FROM tugas WHERE pesanan_id = ? ORDER BY tanggal, id", p.id),
+    // Daftar pilihan untuk formulir ubah pesanan.
+    bisaUbah
+      ? Promise.all([semua<Kontak>("SELECT * FROM kontak ORDER BY nama"), semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran")])
+      : null,
+  ]);
   const totalBiaya = biaya.reduce((s, b) => s + b.jumlah, 0);
-  const tugas = semua<Tugas>("SELECT *, '' AS nomor, '' AS acara, '' AS lokasi FROM tugas WHERE pesanan_id = ? ORDER BY tanggal, id", p.id);
   const hari = hariIni();
 
   return (
@@ -104,12 +115,12 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
 
       <section className="kartu mb-5 p-4">
         <h2 className="mb-3 text-sm font-bold">Rincian pesanan</h2>
-        {bisaUbah ? (
+        {pilihan ? (
           <FormPesanan
             pesanan={p}
             baris={baris}
-            kontak={semua<Kontak>("SELECT * FROM kontak ORDER BY nama")}
-            aset={semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran")}
+            kontak={pilihan[0]}
+            aset={pilihan[1]}
           />
         ) : (
           <div className="overflow-x-auto">

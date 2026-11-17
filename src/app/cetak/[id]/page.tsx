@@ -13,14 +13,16 @@ export const metadata: Metadata = { title: "Cetak dokumen", robots: { index: fal
 export default async function Cetak({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
   const u = await wajib("pesanan.lihat");
   // Dokumen ini memuat harga serta telepon dan email pelanggan.
-  if (!lihatNilai(u.peran)) redirect(`/sistem?galat=${encodeURIComponent("Akun ini tidak punya akses ke halaman itu.")}`);
-  const p = ambilPesanan(Number((await params).id) || 0);
+  if (!(await lihatNilai(u.peran))) redirect(`/sistem?galat=${encodeURIComponent("Akun ini tidak punya akses ke halaman itu.")}`);
+  const p = await ambilPesanan(Number((await params).id) || 0);
   if (!p) notFound();
   // Faktur hanya ada sesudah diterbitkan. Sebelum itu halaman ini selalu mencetak penawaran.
   const faktur = nilai((await searchParams).jenis) === "faktur" && !!p.tgl_faktur;
-  const s = pengaturan();
-  const k = satu<Kontak>("SELECT * FROM kontak WHERE id = ?", p.kontak_id)!;
-  const baris = barisPesanan(p.id);
+  const [s, k, baris] = await Promise.all([
+    pengaturan(),
+    satu<Kontak>("SELECT * FROM kontak WHERE id = ?", p.kontak_id).then((k) => k!),
+    barisPesanan(p.id),
+  ]);
   return (
     <main className="mx-auto max-w-[210mm] p-4 print:p-0">
       <div className="tanpa-cetak mb-4 flex justify-end"><TombolCetak /></div>
