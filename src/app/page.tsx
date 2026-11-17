@@ -58,7 +58,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
           <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
             <div className="grid h-[220px] grid-cols-3 grid-rows-2 gap-2 sm:h-[380px] lg:h-[440px] lg:gap-2.5">
               <div className="relative col-span-2 row-span-2 overflow-hidden rounded-xl bg-kertas">
-                <Image src="/katalog/21-hero-halaman.jpg" alt="Tenda putih beratap runcing terpasang di halaman berumput depan rumah" fill preload sizes="(min-width: 1024px) 420px, 66vw" className="object-cover" />
+                <Image src="/katalog/21-hero-halaman.jpg" alt="Tenda putih terpasang di taman dengan kursi tamu berjajar di depannya" fill preload quality={85} sizes="(min-width: 1024px) 420px, 66vw" className="object-cover" />
                 {termurah && (
                   <div className="absolute bottom-2.5 left-2.5 rounded-lg bg-white px-3 py-2 shadow-[0_8px_24px_-8px_rgb(14_49_56/0.45)] sm:bottom-3 sm:left-3 sm:px-3.5 sm:py-2.5">
                     <p className="text-xs font-semibold uppercase tracking-[0.06em] text-tinta-lembut">Sewa tenda mulai</p>
@@ -68,10 +68,10 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                 )}
               </div>
               <div className="relative overflow-hidden rounded-xl bg-kertas">
-                <Image src="/katalog/16-tepi-laut.jpg" alt="Tenda putih beratap runcing saat acara di tepi laut" fill sizes="(min-width: 1024px) 210px, 33vw" className="object-cover" />
+                <Image src="/katalog/16-puncak-tenda.jpg" alt="Dua puncak tenda putih berlatar langit biru" fill sizes="(min-width: 1024px) 210px, 33vw" className="object-cover" />
               </div>
               <div className="relative overflow-hidden rounded-xl bg-kertas">
-                <Image src="/katalog/13-dalam-tenda.jpg" alt="Bagian dalam tenda rangka dengan meja dan kursi putih" fill sizes="(min-width: 1024px) 210px, 33vw" className="object-cover object-bottom" />
+                <Image src="/katalog/13-dalam-tenda.jpg" alt="Pandangan dari dalam tenda rangka putih ke arah taman, dengan bangku putih berjajar" fill sizes="(min-width: 1024px) 210px, 33vw" className="object-cover" />
               </div>
             </div>
             <p className="mt-1.5 text-right text-xs text-tinta-lembut">Foto ilustrasi</p>
@@ -131,7 +131,7 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
         <section id="cara-sewa" className="scroll-mt-16 bg-tinta text-white">
           <div className="mx-auto grid max-w-7xl gap-7 px-4 py-9 lg:grid-cols-[0.8fr_1.4fr] lg:gap-12 lg:py-12">
             <div className="relative min-h-[200px] overflow-hidden rounded-xl bg-tinta-2 lg:min-h-0">
-              <Image src="/katalog/15-terpasang.jpg" alt="Tenda rangka putih yang sudah terpasang di halaman berumput" fill sizes="(min-width: 1024px) 440px, 100vw" className="object-cover" />
+              <Image src="/katalog/15-terpasang.jpg" alt="Tenda putih yang sudah terpasang di taman, dengan meja bundar dan kursi di bawahnya" fill sizes="(min-width: 1024px) 440px, 100vw" className="object-cover" />
             </div>
             <div>
               <LabelAtas terang>Cara sewa</LabelAtas>

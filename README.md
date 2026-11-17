@@ -112,7 +112,7 @@ Skema dipasang sendiri saat basis data dibuka, jadi basis data kosong langsung s
 
 Cadangan berkas lokal cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`) dan folder `data/foto` (atau `FOTO_DIR`). Untuk Turso dan R2, ambil salinan berkala lewat alat masing-masing dan simpan di tempat yang dipegang kedua partner.
 
-Foto dikecilkan di browser ke sisi terpanjang 1000 piksel dan disimpan sebagai JPEG, jadi satu foto biasanya 100 sampai 300 KB. Server hanya menerima isi berkas yang benar-benar JPEG, paling besar 800 KB, dan paling banyak 8 foto per aset.
+Foto disimpan dalam kualitas HD: browser menyiapkannya sebagai JPEG dengan sisi terpanjang 1920 piksel, biasanya 300 sampai 900 KB per foto. Server hanya menerima isi berkas yang benar-benar JPEG, paling besar 2,5 MB, dan paling banyak 8 foto per aset. Halaman tidak mengirim berkas HD itu utuh: komponen gambar Next membuat ukuran yang pas untuk tiap layar (AVIF atau WebP), jadi foto tetap tajam di layar besar dan ringan di HP.
 
 Berkas fotonya disimpan di Cloudflare R2 kalau empat variabel `R2_*` diisi, dan di folder `data/foto` kalau tidak. Di kedua cara, foto dilayani lewat `/foto/[nama]` dan disimpan lama di cache browser dan CDN. Jadi bucket R2 tidak perlu dibuka untuk umum, dan tempat simpan bisa diganti tanpa mengubah alamat foto.
 

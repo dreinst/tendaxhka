@@ -25,6 +25,24 @@ const pribadi = [
 const config: NextConfig = {
   poweredByHeader: false,
   // skema.sql dibaca saat aplikasi berjalan, jadi harus ikut terbawa ke server (misalnya di Vercel).
+  images: {
+    // Berkas fotonya HD (sisi terpanjang 1920 piksel). Yang dikirim ke pengunjung adalah ukuran yang pas untuk
+    // layarnya, dalam AVIF atau WebP.
+    formats: ["image/avif", "image/webp"],
+    qualities: [75, 85],
+    // Hanya foto katalog bawaan dan foto unggahan yang boleh diolah.
+    localPatterns: [
+      { pathname: "/katalog/**", search: "" },
+      { pathname: "/foto/**", search: "" },
+    ],
+    // Hasil olahan disimpan 31 hari. Kalau isi sebuah foto bawaan diganti, beri nama berkas baru.
+    minimumCacheTTL: 2678400,
+  },
+  experimental: {
+    // Foto HD dari halaman aset dikirim lewat aksi server, dan batas bawaan 1 MB tidak cukup. Angka ini harus di
+    // atas MAKS_UKURAN_FOTO (src/lib/hitung.ts) dan di bawah batas 4,5 MB milik Vercel.
+    serverActions: { bodySizeLimit: "3mb" },
+  },
   outputFileTracingIncludes: { "/*": ["./db/skema.sql"], "/**": ["./db/skema.sql"] },
   async headers() {
     return [

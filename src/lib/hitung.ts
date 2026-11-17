@@ -254,7 +254,9 @@ export function tampakJpeg(b: Uint8Array): boolean {
 }
 
 export const MAKS_FOTO_PER_ASET = 8;
-export const MAKS_UKURAN_FOTO = 800_000;
+// Foto HD (sisi terpanjang 1920 piksel) biasanya 300 sampai 900 KB. Batas ini harus tetap di bawah
+// serverActions.bodySizeLimit di next.config.ts.
+export const MAKS_UKURAN_FOTO = 2_500_000;
 
 // Alamat gambar untuk nilai `berkas` di tabel aset_foto. Foto bawaan berawalan "katalog/" dan dilayani dari folder
 // public. Foto unggahan (nama heksadesimal) dilayani lewat /foto/[nama]. Nama bawaan dibatasi huruf kecil, angka,
