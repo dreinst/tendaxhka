@@ -596,17 +596,24 @@ export async function tambahPerawatan(asetId: number, fd: FormData): Promise<voi
   const kembali = `/sistem/aset/${asetId}`;
   const jumlah = bulat(fd.get("jumlah"));
   const mulai = teks(fd, "mulai", 10);
-  const a = await satu<Aset>("SELECT * FROM aset WHERE id = ?", asetId);
-  if (!a || jumlah <= 0 || jumlah > a.jumlah || !tanggalSah(mulai)) gagal(kembali, "Isi jumlah unit (tidak lebih dari total) dan tanggal mulai.");
-  // Semua catatan perawatan yang masih berjalan dijumlahkan, supaya unit yang diperbaiki tidak melebihi unit yang dimiliki.
-  const dirawat = await unitDirawat(asetId, mulai);
-  if (dirawat + jumlah > a.jumlah) {
-    gagal(kembali, `Sudah ada ${dirawat} unit yang masih diperbaiki. Dari ${a.jumlah} unit, paling banyak ${Math.max(0, a.jumlah - dirawat)} unit lagi yang bisa dicatat.`);
-  }
-  await jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, ?, ?, ?)", asetId, jumlah, mulai, teks(fd, "catatan", 300));
+  let total = 0;
+  // Pemeriksaan dan pencatatan ada di satu transaksi, supaya dua catatan yang masuk bersamaan tidak sama-sama
+  // lolos lalu melebihi unit yang dimiliki.
+  const galat = await coba(async () => {
+    const a = await satu<Aset>("SELECT * FROM aset WHERE id = ?", asetId);
+    if (!a || jumlah <= 0 || jumlah > a.jumlah || !tanggalSah(mulai)) throw new Galat("Isi jumlah unit (tidak lebih dari total) dan tanggal mulai.");
+    // Semua catatan perawatan yang masih berjalan dijumlahkan, supaya unit yang diperbaiki tidak melebihi unit yang dimiliki.
+    const dirawat = await unitDirawat(asetId, mulai);
+    if (dirawat + jumlah > a.jumlah) {
+      throw new Galat(`Sudah ada ${dirawat} unit yang masih diperbaiki. Dari ${a.jumlah} unit, paling banyak ${Math.max(0, a.jumlah - dirawat)} unit lagi yang bisa dicatat.`);
+    }
+    await jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, catatan) VALUES (?, ?, ?, ?)", asetId, jumlah, mulai, teks(fd, "catatan", 300));
+    total = a.jumlah;
+  });
+  if (galat) gagal(kembali, galat);
   // Unit yang rusak tetap dicatat karena memang tidak bisa dipakai, tapi gudang dan sales perlu tahu kalau
   // booking yang sudah ada jadi kekurangan.
-  const peringatan = await peringatanStok(asetId, a.jumlah, mulai);
+  const peringatan = await peringatanStok(asetId, total, mulai);
   if (peringatan) gagal(kembali, `Perawatan dicatat. ${peringatan}`);
   redirect(kembali);
 }
@@ -693,37 +700,45 @@ export async function kunciPeriode(bulan: string): Promise<void> {
 
 export async function bukaPeriode(bulan: string): Promise<void> {
   const u = await wajib("keuangan.tulis");
-  const p = await satu<{ dibayar_tenda: number; dibayar_hka: number; laba_bersih: number }>(
-    "SELECT dibayar_tenda, dibayar_hka, laba_bersih FROM periode WHERE bulan = ?",
-    bulan,
-  );
-  if (p && (p.dibayar_tenda > 0 || p.dibayar_hka > 0)) gagal("/sistem/bagi-hasil", "Periode ini sudah punya pembayaran ke partner. Nolkan dulu sebelum dibuka.");
-  await jalankan("DELETE FROM periode WHERE bulan = ?", bulan);
-  if (p) await catatLog(u, "Buka kembali periode", `${bulan}, laba bersih yang dibekukan sebelumnya ${rupiah(p.laba_bersih)}`);
+  // Satu transaksi dengan pencatatan pembayaran ke partner, supaya periode tidak terbuka tepat saat
+  // pembayarannya sedang dicatat.
+  const galat = await coba(async () => {
+    const p = await satu<{ dibayar_tenda: number; dibayar_hka: number; laba_bersih: number }>(
+      "SELECT dibayar_tenda, dibayar_hka, laba_bersih FROM periode WHERE bulan = ?",
+      bulan,
+    );
+    if (p && (p.dibayar_tenda > 0 || p.dibayar_hka > 0)) throw new Galat("Periode ini sudah punya pembayaran ke partner. Nolkan dulu sebelum dibuka.");
+    await jalankan("DELETE FROM periode WHERE bulan = ?", bulan);
+    if (p) await catatLog(u, "Buka kembali periode", `${bulan}, laba bersih yang dibekukan sebelumnya ${rupiah(p.laba_bersih)}`);
+  });
+  if (galat) gagal("/sistem/bagi-hasil", galat);
   redirect("/sistem/bagi-hasil");
 }
 
 export async function catatBayarPartner(bulan: string, fd: FormData): Promise<void> {
   const u = await wajib("keuangan.tulis");
-  const p = await satu<{ bagian_tenda: number; bagian_hka: number; dibayar_tenda: number; dibayar_hka: number }>(
-    "SELECT bagian_tenda, bagian_hka, dibayar_tenda, dibayar_hka FROM periode WHERE bulan = ?",
-    bulan,
-  );
-  if (!p) gagal("/sistem/bagi-hasil", "Periode itu belum ditutup.");
   const tenda = uang(fd.get("dibayar_tenda"), "Pembayaran ke Tenda Indonesia", "/sistem/bagi-hasil");
   const hka = uang(fd.get("dibayar_hka"), "Pembayaran ke HKA", "/sistem/bagi-hasil");
-  // Saat rugi, bagian partner negatif sehingga batasnya nol: tidak ada laba yang bisa dibayarkan.
-  if (tenda > Math.max(0, p.bagian_tenda) || hka > Math.max(0, p.bagian_hka)) {
-    gagal("/sistem/bagi-hasil", "Pembayaran ke partner tidak boleh melebihi bagiannya di periode itu.");
-  }
-  await jalankan("UPDATE periode SET dibayar_tenda = ?, dibayar_hka = ?, catatan = ? WHERE bulan = ?", tenda, hka, teks(fd, "catatan", 300), bulan);
-  if (tenda !== p.dibayar_tenda || hka !== p.dibayar_hka) {
-    await catatLog(
-      u,
-      "Catat pembayaran ke partner",
-      `${bulan}, Tenda dari ${rupiah(p.dibayar_tenda)} menjadi ${rupiah(tenda)}, HKA dari ${rupiah(p.dibayar_hka)} menjadi ${rupiah(hka)}`,
+  const galat = await coba(async () => {
+    const p = await satu<{ bagian_tenda: number; bagian_hka: number; dibayar_tenda: number; dibayar_hka: number }>(
+      "SELECT bagian_tenda, bagian_hka, dibayar_tenda, dibayar_hka FROM periode WHERE bulan = ?",
+      bulan,
     );
-  }
+    if (!p) throw new Galat("Periode itu belum ditutup.");
+    // Saat rugi, bagian partner negatif sehingga batasnya nol: tidak ada laba yang bisa dibayarkan.
+    if (tenda > Math.max(0, p.bagian_tenda) || hka > Math.max(0, p.bagian_hka)) {
+      throw new Galat("Pembayaran ke partner tidak boleh melebihi bagiannya di periode itu.");
+    }
+    await jalankan("UPDATE periode SET dibayar_tenda = ?, dibayar_hka = ?, catatan = ? WHERE bulan = ?", tenda, hka, teks(fd, "catatan", 300), bulan);
+    if (tenda !== p.dibayar_tenda || hka !== p.dibayar_hka) {
+      await catatLog(
+        u,
+        "Catat pembayaran ke partner",
+        `${bulan}, Tenda dari ${rupiah(p.dibayar_tenda)} menjadi ${rupiah(tenda)}, HKA dari ${rupiah(p.dibayar_hka)} menjadi ${rupiah(hka)}`,
+      );
+    }
+  });
+  if (galat) gagal("/sistem/bagi-hasil", galat);
   redirect("/sistem/bagi-hasil");
 }
 
