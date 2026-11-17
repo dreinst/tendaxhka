@@ -16,7 +16,7 @@ import {
   ubahStatus,
 } from "@/lib/aksi";
 import { wajib } from "@/lib/auth";
-import { ambilPesanan, barisPesanan, kekurangan, type Aset, type Biaya, type Kontak, type Tugas } from "@/lib/data";
+import { ambilPesanan, barisPesanan, kekurangan, lihatNilai, type Aset, type Biaya, type Kontak, type Tugas } from "@/lib/data";
 import { semua } from "@/lib/db";
 import { hariIni, LABEL_TUGAS, rupiah, tanggal } from "@/lib/format";
 import { bacaChecklist, boleh, nilaiBaris } from "@/lib/hitung";
@@ -38,6 +38,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
   const galat = nilai((await searchParams).galat);
   const tulis = boleh(u.peran, "pesanan.tulis");
   const lihatUang = boleh(u.peran, "keuangan.lihat");
+  const tampakNilai = lihatNilai(u.peran);
   const tulisUang = boleh(u.peran, "keuangan.tulis");
   const tulisJadwal = boleh(u.peran, "jadwal.tulis");
   const bisaUbah = tulis && p.status !== "selesai" && p.status !== "batal";
@@ -45,10 +46,12 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
 
   const baris = barisPesanan(p.id);
   const kurang = p.status === "penawaran" ? kekurangan(p.id) : [];
-  const bayar = semua<{ id: number; tanggal: string; jumlah: number; metode: string; catatan: string }>(
-    "SELECT * FROM pembayaran WHERE pesanan_id = ? ORDER BY tanggal, id",
-    p.id,
-  );
+  const bayar = tampakNilai
+    ? semua<{ id: number; tanggal: string; jumlah: number; metode: string; catatan: string }>(
+        "SELECT * FROM pembayaran WHERE pesanan_id = ? ORDER BY tanggal, id",
+        p.id,
+      )
+    : [];
   const biaya = lihatUang ? semua<Biaya>("SELECT *, NULL AS nomor FROM biaya WHERE pesanan_id = ? ORDER BY tanggal, id", p.id) : [];
   const totalBiaya = biaya.reduce((s, b) => s + b.jumlah, 0);
   const tugas = semua<Tugas>("SELECT *, '' AS nomor, '' AS acara, '' AS lokasi FROM tugas WHERE pesanan_id = ? ORDER BY tanggal, id", p.id);
@@ -58,8 +61,8 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
     <>
       <Kepala judul={`${p.nomor} · ${p.acara}`} ket={`${p.kontak}${p.perusahaan && `, ${p.perusahaan}`}. Pasang ${tanggal(p.mulai)}, bongkar ${tanggal(p.selesai)}.`}>
         <Lencana nilai={p.status} />
-        <Link href={`/cetak/${p.id}?jenis=penawaran`} target="_blank" className="tombol tombol-kecil">Cetak penawaran</Link>
-        {p.tgl_faktur && <Link href={`/cetak/${p.id}?jenis=faktur`} target="_blank" className="tombol tombol-kecil">Cetak faktur</Link>}
+        {tampakNilai && <Link href={`/cetak/${p.id}?jenis=penawaran`} target="_blank" className="tombol tombol-kecil">Cetak penawaran</Link>}
+        {tampakNilai && p.tgl_faktur && <Link href={`/cetak/${p.id}?jenis=faktur`} target="_blank" className="tombol tombol-kecil">Cetak faktur</Link>}
       </Kepala>
       <Pesan galat={galat} />
 
@@ -84,7 +87,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
         </div>
       )}
 
-      <section aria-label="Ringkasan nilai" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {tampakNilai && <section aria-label="Ringkasan nilai" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ["Total", rupiah(p.total), p.diskon ? `Sesudah diskon ${rupiah(p.diskon)}` : ""],
           ["Sudah dibayar", rupiah(p.dibayar), ""],
@@ -97,7 +100,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
             {ket && <p className="mt-1 text-xs text-tinta-lembut">{ket}</p>}
           </div>
         ))}
-      </section>
+      </section>}
 
       <section className="kartu mb-5 p-4">
         <h2 className="mb-3 text-sm font-bold">Rincian pesanan</h2>
@@ -112,7 +115,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
           <div className="overflow-x-auto">
             <table className="tabel">
               <thead>
-                <tr><th scope="col">Keterangan</th><th scope="col" className="angka">Jumlah</th><th scope="col" className="angka">Hari</th><th scope="col" className="angka">Harga</th><th scope="col" className="angka">Nilai</th></tr>
+                <tr><th scope="col">Keterangan</th><th scope="col" className="angka">Jumlah</th><th scope="col" className="angka">Hari</th>{tampakNilai && <th scope="col" className="angka">Harga</th>}{tampakNilai && <th scope="col" className="angka">Nilai</th>}</tr>
               </thead>
               <tbody>
                 {baris.map((b) => (
@@ -120,8 +123,8 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
                     <td>{b.deskripsi}</td>
                     <td className="angka">{b.jumlah}</td>
                     <td className="angka">{b.hari}</td>
-                    <td className="angka">{rupiah(b.harga)}</td>
-                    <td className="angka">{rupiah(nilaiBaris(b))}</td>
+                    {tampakNilai && <td className="angka">{rupiah(b.harga)}</td>}
+                    {tampakNilai && <td className="angka">{rupiah(nilaiBaris(b))}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -133,7 +136,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <section className="kartu p-4">
+        {tampakNilai && <section className="kartu p-4">
           <h2 className="mb-3 text-sm font-bold">Pembayaran masuk</h2>
           {bayar.length === 0 ? (
             <Kosong>{dipesan ? "Belum ada pembayaran." : "Pembayaran dicatat sesudah pesanan dibooking."}</Kosong>
@@ -178,7 +181,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
               <div className="col-span-2"><button className="tombol tombol-tinta">Catat pembayaran</button></div>
             </form>
           )}
-        </section>
+        </section>}
 
         {lihatUang && (
           <section className="kartu p-4">

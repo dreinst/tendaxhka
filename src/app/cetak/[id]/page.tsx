@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { TombolCetak } from "@/komponen/tombol-cetak";
 import { nilai, type Cari } from "@/komponen/ui";
 import { wajib } from "@/lib/auth";
-import { ambilPesanan, barisPesanan, pengaturan, type Kontak } from "@/lib/data";
+import { ambilPesanan, barisPesanan, lihatNilai, pengaturan, type Kontak } from "@/lib/data";
 import { satu } from "@/lib/db";
 import { rupiah, tanggal } from "@/lib/format";
 import { nilaiBaris } from "@/lib/hitung";
@@ -11,7 +11,9 @@ import { nilaiBaris } from "@/lib/hitung";
 export const metadata: Metadata = { title: "Cetak dokumen", robots: { index: false, follow: false } };
 
 export default async function Cetak({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
-  await wajib("pesanan.lihat");
+  const u = await wajib("pesanan.lihat");
+  // Dokumen ini memuat harga serta telepon dan email pelanggan.
+  if (!lihatNilai(u.peran)) redirect(`/sistem?galat=${encodeURIComponent("Akun ini tidak punya akses ke halaman itu.")}`);
   const p = ambilPesanan(Number((await params).id) || 0);
   if (!p) notFound();
   // Faktur hanya ada sesudah diterbitkan. Sebelum itu halaman ini selalu mencetak penawaran.

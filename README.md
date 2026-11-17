@@ -63,11 +63,13 @@ Pesanan yang berulang bisa disalin menjadi penawaran baru di tanggal lain lewat 
 |---|---|
 | Admin | Semua, termasuk keuangan, tutup periode, pengaturan, dan pengguna |
 | Sales | CRM, penawaran, booking, pembayaran masuk, penugasan jadwal |
-| Gudang | Aset, perawatan, jadwal, checklist |
+| Gudang | Aset, perawatan, jadwal, checklist. Melihat barang, jumlah, tanggal, dan lokasi pesanan tanpa harga |
 | Kru | Melihat jadwal dan kalender, mencentang checklist |
 | Partner | Melihat semuanya termasuk keuangan dan bagi hasil, tanpa bisa mengubah |
 
 Daftar haknya ada di `HAK` di `src/lib/hitung.ts`.
+
+Harga, total, pembayaran, dan dokumen cetak (penawaran dan faktur, yang memuat telepon dan email pelanggan) tertutup untuk peran gudang. Admin bisa membukanya di Pengaturan, bagian Akses peran gudang, dan perubahannya tercatat di jejak audit.
 
 ## Rumus bagi hasil
 

@@ -92,6 +92,22 @@ export default async function Pengaturan({ searchParams }: { searchParams: Cari 
           </Bidang>
         </section>
 
+        <section className="kartu flex flex-wrap items-end justify-between gap-3 p-4">
+          <div className="min-w-0 flex-1 basis-80">
+            <h2 className="text-sm font-bold">Akses peran gudang</h2>
+            <p className="mt-1 text-xs text-tinta-lembut">
+              Gudang selalu melihat barang, jumlah, tanggal, dan lokasi pesanan. Harga, total, pembayaran, dan dokumen cetak (yang memuat telepon
+              dan email pelanggan) baru terlihat kalau dibuka di sini.
+            </p>
+          </div>
+          <Bidang label="Harga dan dokumen cetak untuk gudang" id="gudang_lihat_nilai" className="w-full sm:w-64">
+            <select className="isian" id="gudang_lihat_nilai" name="gudang_lihat_nilai" defaultValue={s.gudang_lihat_nilai}>
+              <option value="tidak">Tertutup</option>
+              <option value="ya">Terbuka</option>
+            </select>
+          </Bidang>
+        </section>
+
         <section className="kartu grid gap-3 p-4 md:grid-cols-2">
           <h2 className="text-sm font-bold md:col-span-2">Checklist bawaan</h2>
           <p className="-mt-2 text-xs text-tinta-lembut md:col-span-2">Satu butir per baris. Dipasang ke tugas baru saat pesanan dibooking.</p>

@@ -734,6 +734,7 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
     persen_cadangan: angka("persen_cadangan", 100),
     persen_pajak: angka("persen_pajak", 100),
     porsi_tenda: angka("porsi_tenda", 100),
+    gudang_lihat_nilai: pilihan(teks(fd, "gudang_lihat_nilai"), ["tidak", "ya"], "tidak"),
     checklist_pasang: teks(fd, "checklist_pasang", 3000),
     checklist_bongkar: teks(fd, "checklist_bongkar", 3000),
   };
@@ -741,8 +742,8 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
     for (const [k, v] of Object.entries(isi)) {
       jalankan("INSERT INTO pengaturan (kunci, nilai) VALUES (?, ?) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai", k, v);
     }
-    // Kunci yang memengaruhi bagi hasil dicatat lengkap dengan nilai lamanya. Yang lain cukup namanya.
-    const rumus = ["basis", "persen_cadangan", "persen_pajak", "porsi_tenda"];
+    // Kunci yang memengaruhi bagi hasil atau hak akses dicatat lengkap dengan nilai lamanya. Yang lain cukup namanya.
+    const rumus = ["basis", "persen_cadangan", "persen_pajak", "porsi_tenda", "gudang_lihat_nilai"];
     const berubah = (Object.keys(isi) as (keyof typeof isi)[]).filter((k) => lama[k] !== isi[k]);
     if (berubah.length) {
       catatLog(u, "Ubah pengaturan", berubah.map((k) => (rumus.includes(k) ? `${k} dari ${lama[k]} menjadi ${isi[k]}` : k)).join("; "));

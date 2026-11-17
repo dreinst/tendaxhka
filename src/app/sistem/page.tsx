@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Kepala, Kosong, Lencana, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { wajib } from "@/lib/auth";
-import { daftarPesanan, labaBulan, utilisasiBulan, type Kontak, type Tugas } from "@/lib/data";
+import { daftarPesanan, labaBulan, lihatNilai, utilisasiBulan, type Kontak, type Tugas } from "@/lib/data";
 import { satu, semua } from "@/lib/db";
 import { hariIni, LABEL_TAHAP, LABEL_TUGAS, namaBulan, persen, rupiah, tanggal } from "@/lib/format";
 import { boleh, geserBulan, tambahHari } from "@/lib/hitung";
@@ -24,6 +24,7 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
   const lihatUang = boleh(u.peran, "keuangan.lihat");
   const lihatKontak = boleh(u.peran, "kontak.lihat");
   const lihatPesanan = boleh(u.peran, "pesanan.lihat");
+  const tampakNilai = lihatNilai(u.peran);
 
   const laba = lihatUang ? labaBulan(bulan) : null;
   const tren = lihatUang ? [-5, -4, -3, -2, -1, 0].map((n) => labaBulan(geserBulan(bulan, n))) : [];
@@ -68,8 +69,9 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
 
       <section aria-label="Operasional" className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Angka label="Utilisasi aset" nilai={persen(util.rata)} ket="Unit-hari tersewa bulan ini" />
-        {lihatPesanan && <Angka label="Piutang" nilai={rupiah(piutang)} ket={`${aktif.filter((p) => p.sisa > 0).length} pesanan belum lunas`} />}
-        {lihatPesanan && <Angka label="Penawaran terbuka" nilai={rupiah(terbuka.reduce((s, p) => s + p.total, 0))} ket={`${terbuka.length} penawaran`} />}
+        {lihatPesanan && tampakNilai && <Angka label="Piutang" nilai={rupiah(piutang)} ket={`${aktif.filter((p) => p.sisa > 0).length} pesanan belum lunas`} />}
+        {lihatPesanan && tampakNilai && <Angka label="Penawaran terbuka" nilai={rupiah(terbuka.reduce((s, p) => s + p.total, 0))} ket={`${terbuka.length} penawaran`} />}
+        {lihatPesanan && !tampakNilai && <Angka label="Penawaran terbuka" nilai={String(terbuka.length)} ket="Belum dikonfirmasi pelanggan" />}
         {lihatKontak && <Angka label="Tingkat menang" nilai={putus ? persen(hitung("menang") / putus) : "Belum ada"} ket={`${berulang} pelanggan memesan berulang`} />}
       </section>
 

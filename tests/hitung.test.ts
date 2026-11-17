@@ -63,6 +63,13 @@ test("partner hanya melihat, kru hanya mencentang", () => {
   assert.equal(boleh("sales", "keuangan.lihat"), false);
 });
 
+test("harga dan pembayaran pesanan tertutup untuk gudang dan kru", () => {
+  assert.ok(boleh("gudang", "pesanan.lihat"));
+  assert.ok(!boleh("gudang", "nilai.lihat"));
+  assert.ok(!boleh("kru", "nilai.lihat"));
+  for (const peran of ["admin", "sales", "partner"] as const) assert.ok(boleh(peran, "nilai.lihat"));
+});
+
 test("checklist yang rusak dibaca sebagai kosong", () => {
   assert.deepEqual(bacaChecklist("bukan json"), []);
   assert.deepEqual(bacaChecklist('[{"teks":"a","beres":true},{"x":1}]'), [{ teks: "a", beres: true }]);

@@ -8,6 +8,9 @@ export const HAK = {
   "kontak.tulis": ["admin", "sales"],
   "pesanan.lihat": ["admin", "sales", "gudang", "partner"],
   "pesanan.tulis": ["admin", "sales"],
+  // Harga, total, dan pembayaran di pesanan, juga dokumen cetaknya. Peran gudang ikut melihat hanya kalau
+  // dibuka di Pengaturan (lihatNilai di data.ts).
+  "nilai.lihat": ["admin", "sales", "partner"],
   "aset.lihat": ["admin", "sales", "gudang", "kru", "partner"],
   "aset.tulis": ["admin", "gudang"],
   "jadwal.lihat": ["admin", "sales", "gudang", "kru", "partner"],

@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 process.env.DB_PATH = ":memory:";
 
-const { ambilPesanan, biayaBulan, bulanTerkunci, cabutSesiLain, daftarLog, daftarPesanan, galatStatus, galatUbahPesanan, salinPesanan, setStatusPesanan, kekurangan, kunciBulan, labaBulan, nomorBerikut, pendapatanBulan } = await import("../src/lib/data.ts");
+const { ambilPesanan, biayaBulan, bulanTerkunci, cabutSesiLain, daftarLog, daftarPesanan, galatStatus, galatUbahPesanan, lihatNilai, salinPesanan, setStatusPesanan, kekurangan, kunciBulan, labaBulan, nomorBerikut, pendapatanBulan } = await import("../src/lib/data.ts");
 const { waktuKini } = await import("../src/lib/format.ts");
 const { jalankan, semua: satuan } = await import("../src/lib/db.ts");
 
@@ -223,4 +223,14 @@ test("kunci periode memakai waktu WIB, bukan UTC", () => {
   kunciBulan("2026-10");
   const t = satuan("SELECT dikunci FROM periode WHERE bulan = '2026-10'") as { dikunci: string }[];
   assert.match(t[0].dikunci, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+});
+
+test("gudang melihat nilai pesanan hanya kalau dibuka di pengaturan, peran lain tidak terpengaruh", () => {
+  assert.equal(lihatNilai("gudang"), false);
+  assert.equal(lihatNilai("sales"), true);
+  jalankan("INSERT INTO pengaturan (kunci, nilai) VALUES ('gudang_lihat_nilai', 'ya')");
+  assert.equal(lihatNilai("gudang"), true);
+  assert.equal(lihatNilai("kru"), false);
+  jalankan("UPDATE pengaturan SET nilai = 'tidak' WHERE kunci = 'gudang_lihat_nilai'");
+  assert.equal(lihatNilai("gudang"), false);
 });

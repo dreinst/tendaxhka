@@ -2,6 +2,7 @@ import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni, rupiah, waktuKini } from "./format.ts";
 import {
   batasBulan,
+  boleh,
   hitungLaba,
   pakaiPerHari,
   rentangHari,
@@ -130,6 +131,7 @@ export const PENGATURAN_BAWAAN = {
   persen_cadangan: "0",
   persen_pajak: "0",
   porsi_tenda: "50",
+  gudang_lihat_nilai: "tidak",
   checklist_pasang: "Cek lokasi dan titik pasang\nHitung barang keluar gudang\nPasang rangka dan atap\nPasang dinding dan pemberat\nFoto hasil pasang\nSerah terima ke pelanggan",
   checklist_bongkar: "Bongkar dinding dan atap\nBongkar rangka\nHitung barang kembali ke gudang\nCatat barang rusak atau hilang",
 } as const;
@@ -142,6 +144,13 @@ export function pengaturan(): Pengaturan {
     if (b.kunci in hasil) hasil[b.kunci] = b.nilai;
   }
   return hasil as Pengaturan;
+}
+
+// Harga, total, dan pembayaran pesanan, termasuk dokumen cetak yang memuat telepon dan email pelanggan.
+// Peran gudang cukup tahu barang, jumlah, tanggal, dan lokasi, jadi angka itu tertutup untuknya kecuali
+// dibuka di halaman Pengaturan.
+export function lihatNilai(peran: Peran): boolean {
+  return boleh(peran, "nilai.lihat") || (peran === "gudang" && pengaturan().gudang_lihat_nilai === "ya");
 }
 
 const PILIH_PESANAN = `
