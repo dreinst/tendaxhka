@@ -39,10 +39,15 @@ export const penggunaSaatIni = cache(async (): Promise<Pengguna | null> => {
   if (!u) return null;
   // Geser batas tidak aktif ke depan, paling jauh sampai batas umur sesi. Supaya tidak menulis ke basis data
   // di setiap permintaan, penggeseran hanya dilakukan kalau sisa waktunya sudah berkurang lebih dari 5 menit.
+  // Yang lebih awal dipilih dengan CASE, karena MIN dengan dua argumen hanya ada di SQLite.
   if (Date.parse(u.kedaluwarsa) - kini < TIDAK_AKTIF - 5 * 60_000) {
+    const geser = new Date(kini + TIDAK_AKTIF).toISOString();
     await jalankan(
-      "UPDATE sesi SET batas = COALESCE(batas, kedaluwarsa), kedaluwarsa = MIN(?, COALESCE(batas, kedaluwarsa)) WHERE token = ?",
-      new Date(kini + TIDAK_AKTIF).toISOString(),
+      `UPDATE sesi SET batas = COALESCE(batas, kedaluwarsa),
+         kedaluwarsa = CASE WHEN ? < COALESCE(batas, kedaluwarsa) THEN ? ELSE COALESCE(batas, kedaluwarsa) END
+       WHERE token = ?`,
+      geser,
+      geser,
       hash,
     );
   }

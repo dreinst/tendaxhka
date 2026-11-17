@@ -38,7 +38,7 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
     lihatKontak
       ? satu<{ n: number }>(
           `SELECT COUNT(*) AS n FROM (SELECT kontak_id FROM pesanan WHERE status IN ('booking', 'berjalan', 'selesai')
-           GROUP BY kontak_id HAVING COUNT(*) > 1)`,
+           GROUP BY kontak_id HAVING COUNT(*) > 1) AS ulang`,
         ).then((b) => b!.n)
       : 0,
     lihatKontak

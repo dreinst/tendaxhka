@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Client, InValue, ResultSet, Transaction } from "@libsql/client";
+import type { DatabaseSync } from "node:sqlite";
+import type { Pool, PoolClient } from "pg";
 import { isiDataContoh } from "./contoh.ts";
 
 // Mode demo untuk pratinjau tanpa basis data sungguhan: berkas SQLite dan foto ditaruh di /tmp, satu-satunya
@@ -9,49 +10,71 @@ import { isiDataContoh } from "./contoh.ts";
 // setiap kali server dimulai ulang, jadi mode ini tidak untuk data asli.
 export const MODE_DEMO = process.env.MODE_DEMO === "1";
 
-// Basis data ada di salah satu dari dua tempat, dan kode di luar berkas ini tidak perlu tahu yang mana:
-//  - TURSO_DATABASE_URL diisi: basis data Turso (libSQL lewat jaringan). Dipakai di hosting tanpa disk tetap
-//    seperti Vercel. TURSO_AUTH_TOKEN berisi token aksesnya.
-//  - selain itu: satu berkas SQLite di DB_PATH, bawaannya data/tenda.db (atau /tmp di mode demo).
-// Keduanya dibuka lewat klien libSQL yang sama, jadi SQL dan skemanya tidak berbeda.
-const ALAMAT_JAUH = process.env.TURSO_DATABASE_URL?.trim() || "";
+// Basis data dijalankan salah satu dari dua mesin, dan kode di luar berkas ini tidak perlu tahu yang mana:
+//  - DATABASE_URL diisi: PostgreSQL lewat paket pg. Dipakai di hosting tanpa disk tetap, misalnya Neon di Vercel.
+//  - selain itu: satu berkas SQLite di DB_PATH (bawaannya data/tenda.db, atau /tmp di mode demo) lewat
+//    node:sqlite bawaan Node. Dipakai di lokal, uji, mode demo, dan server sendiri yang punya disk.
+// SQL di aplikasi ditulis dengan bagian yang sah dan sama artinya di kedua mesin, dengan ? sebagai parameter.
+const ALAMAT_PG = process.env.DATABASE_URL?.trim() || "";
+
+// Khusus uji: nama skema PostgreSQL yang dibuat kalau belum ada dan dipasang sebagai search_path di setiap
+// koneksi, supaya tiap berkas uji punya ruang sendiri di satu basis data.
+const SKEMA_PG = process.env.SKEMA_PG?.trim() || "";
 
 export function jalurDb(): string {
   if (process.env.DB_PATH) return process.env.DB_PATH;
   return MODE_DEMO ? "/tmp/tenda-demo/tenda.db" : join(process.cwd(), "data", "tenda.db");
 }
 
-// Naikkan angka ini setiap kali db/skema.sql atau KOLOM_TAMBAHAN berubah. Basis data jarak jauh hanya dipasangi
-// skema lagi kalau versinya tertinggal.
+// Naikkan angka ini setiap kali db/skema.sql, db/skema-pg.sql, atau KOLOM_TAMBAHAN berubah. PostgreSQL hanya
+// dipasangi skema lagi kalau versinya tertinggal.
 const VERSI_SKEMA = 1;
 
-// Kolom yang ditambahkan sesudah skema awal. ALTER TABLE tidak punya IF NOT EXISTS, jadi galat "kolom sudah
-// ada" diabaikan.
+// Kolom yang ditambahkan ke berkas SQLite lama sesudah skema awal. ALTER TABLE di SQLite tidak punya
+// IF NOT EXISTS, jadi galat "kolom sudah ada" diabaikan. Skema PostgreSQL sudah memuat kolom-kolom ini.
 const KOLOM_TAMBAHAN: [tabel: string, kolom: string, tipe: string][] = [
   ["sesi", "batas", "TEXT"],
   ["aset", "kapasitas", "TEXT NOT NULL DEFAULT ''"],
   ["aset", "cocok", "TEXT NOT NULL DEFAULT ''"],
 ];
 
+// Kunci advisory PostgreSQL. Angkanya bebas, asal tidak dipakai aplikasi lain di basis data yang sama.
+const KUNCI_TULIS = 7_141_201;
+const KUNCI_SKEMA = 7_141_202;
+
+type P = string | number | bigint | null;
+type Baris = Record<string, unknown>;
+// Menjalankan satu pernyataan dan mengembalikan barisnya (kosong untuk pernyataan tanpa hasil).
+type Pelaksana = (sql: string, p: P[]) => Promise<Baris[]>;
+
+export type Mesin = {
+  jenis: "sqlite" | "postgres";
+  // Pernyataan di luar transaksi.
+  jalan: Pelaksana;
+  transaksi<T>(fn: () => Promise<T> | T): Promise<T>;
+  tutup(): Promise<void>;
+};
+
 type Keadaan = {
-  klien?: Promise<Client>;
-  // Transaksi yang sedang berjalan di rantai pemanggilan ini. semua(), satu(), dan jalankan() yang dipanggil
-  // di dalam transaksi() otomatis memakainya, jadi pemanggil tidak perlu mengoper objek transaksi ke mana-mana.
-  transaksi: AsyncLocalStorage<Transaction>;
-  // Ekor antrean untuk berkas lokal (lihat antre).
+  klien?: Promise<Mesin>;
+  // Pelaksana transaksi yang sedang berjalan di rantai pemanggilan ini. semua(), satu(), jalankan(), dan
+  // sisip() yang dipanggil di dalam transaksi() otomatis memakainya, jadi pemanggil tidak perlu mengoper
+  // objek transaksi ke mana-mana.
+  transaksi: AsyncLocalStorage<Pelaksana>;
+  // Ekor antrean SQLite (lihat antre).
   ekor: Promise<unknown>;
 };
 
 // Disimpan di globalThis supaya koneksi tidak dibuka ulang saat dev memuat ulang modul.
 function keadaan(): Keadaan {
   const g = globalThis as typeof globalThis & { __dbTenda?: Keadaan };
-  g.__dbTenda ??= { transaksi: new AsyncLocalStorage<Transaction>(), ekor: Promise.resolve() };
+  g.__dbTenda ??= { transaksi: new AsyncLocalStorage<Pelaksana>(), ekor: Promise.resolve() };
   return g.__dbTenda;
 }
 
-// Klien basis data, dibuka dan disiapkan sekali per proses. Kalau penyiapannya gagal (misalnya SANDI_DEMO belum
+// Mesin basis data, dibuka dan disiapkan sekali per proses. Kalau penyiapannya gagal (misalnya SANDI_DEMO belum
 // diisi), pemanggilan berikutnya mencoba lagi dari awal dan tidak memakai basis data setengah jadi.
-export function buka(): Promise<Client> {
+export function buka(): Promise<Mesin> {
   const k = keadaan();
   if (k.klien) return k.klien;
   const baru = siapkan();
@@ -67,82 +90,93 @@ export async function tutup(): Promise<void> {
   const k = keadaan();
   const lama = k.klien;
   k.klien = undefined;
-  if (lama) (await lama.catch(() => null))?.close();
+  if (lama) await (await lama.catch(() => null))?.tutup();
 }
 
-async function siapkan(): Promise<Client> {
-  if (ALAMAT_JAUH && MODE_DEMO) {
-    throw new Error("MODE_DEMO=1 tidak boleh dipakai bersama TURSO_DATABASE_URL, karena data contoh bisa masuk ke basis data asli.");
+async function siapkan(): Promise<Mesin> {
+  if (ALAMAT_PG && MODE_DEMO) {
+    throw new Error("MODE_DEMO=1 tidak boleh dipakai bersama DATABASE_URL, karena data contoh bisa masuk ke basis data asli.");
   }
-  const klien = await buatKlien();
+  const mesin = ALAMAT_PG ? await bukaPostgres() : await bukaSqlite();
   try {
-    // WAL membuat pembaca tidak tertahan penulis. Turso mengatur jurnalnya sendiri dan menolak PRAGMA ini.
-    if (!ALAMAT_JAUH) await klien.execute("PRAGMA journal_mode = WAL");
-    await pasangSkema(klien);
-    if (MODE_DEMO) await isiContohBilaKosong(klien);
-    return klien;
+    if (MODE_DEMO) await isiContohBilaKosong(mesin);
+    return mesin;
   } catch (e) {
-    klien.close();
+    await mesin.tutup();
     throw e;
   }
 }
 
-async function buatKlien(): Promise<Client> {
-  // Basis data jarak jauh dibuka dengan klien web: cukup fetch, tanpa modul native, dan itu yang disarankan
-  // Turso untuk Vercel. Alamat libsql:// dilayani lewat HTTPS.
-  if (ALAMAT_JAUH && !ALAMAT_JAUH.startsWith("file:")) {
-    const { createClient } = await import("@libsql/client/web");
-    return createClient({ url: ALAMAT_JAUH, authToken: process.env.TURSO_AUTH_TOKEN });
-  }
-  // Berkas lokal butuh klien Node, yang membawa SQLite sendiri.
-  const { createClient } = await import("@libsql/client");
-  // Alamat file: di TURSO_DATABASE_URL hanya dipakai uji, untuk menjalankan cabang kode jarak jauh tanpa server.
-  if (ALAMAT_JAUH) return createClient({ url: ALAMAT_JAUH });
-  const jalur = jalurDb();
-  if (jalur !== ":memory:") mkdirSync(dirname(jalur), { recursive: true });
-  // timeout: lama menunggu kunci kalau berkasnya sedang ditulis proses lain, misalnya skrip seed.
-  return createClient({ url: jalur === ":memory:" ? ":memory:" : `file:${jalur}`, timeout: 5000 });
-}
-
-// Berkas lokal dipasangi skema setiap kali dibuka: murah, dan perubahan skema langsung berlaku. Basis data
-// jarak jauh dicek versinya dulu dengan satu kueri, supaya server yang baru bangun tidak mengirim seluruh skema.
-async function pasangSkema(klien: Client): Promise<void> {
-  if (ALAMAT_JAUH) {
-    const versi = await klien.execute("SELECT nilai FROM pengaturan WHERE kunci = 'versi_skema'").then(
-      (r) => Number(r.rows[0]?.nilai ?? 0),
-      // Tabel pengaturan belum ada berarti basis datanya masih kosong. Galat lain (jaringan, token) akan muncul
-      // lagi saat skema dipasang di bawah.
-      () => 0,
-    );
-    if (versi >= VERSI_SKEMA) return;
-  }
-  await klien.executeMultiple(readFileSync(join(process.cwd(), "db", "skema.sql"), "utf8"));
-  for (const [tabel, kolom, tipe] of KOLOM_TAMBAHAN) {
-    await klien.execute(`ALTER TABLE ${tabel} ADD COLUMN ${kolom} ${tipe}`).catch((e: unknown) => {
-      if (!/duplicate column/i.test(String((e as Error)?.message))) throw e;
-    });
-  }
-  await klien.execute({
-    sql: "INSERT INTO pengaturan (kunci, nilai) VALUES ('versi_skema', ?) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai",
-    args: [String(VERSI_SKEMA)],
-  });
-}
-
 // Data contoh diisi di dalam satu transaksi: kalau gagal di tengah, tidak ada yang tersimpan dan pemanggilan
 // berikutnya mengulang dari basis data kosong.
-async function isiContohBilaKosong(klien: Client): Promise<void> {
-  if ((await klien.execute("SELECT 1 FROM pengguna LIMIT 1")).rows.length) return;
+async function isiContohBilaKosong(mesin: Mesin): Promise<void> {
+  if ((await mesin.jalan("SELECT 1 FROM pengguna LIMIT 1", [])).length) return;
   const sandi = process.env.SANDI_DEMO ?? "";
   if (sandi.length < 8) throw new Error("MODE_DEMO=1 butuh SANDI_DEMO minimal 8 karakter untuk akun contoh.");
-  await dalamTransaksi(klien, () => isiDataContoh(sandi));
+  await mesin.transaksi(() => isiDataContoh(sandi));
 }
 
-// Berkas lokal hanya menerima satu penulis. Koneksi lain yang ikut menulis saat sebuah transaksi masih terbuka
-// langsung ditolak (SQLITE_BUSY), dan karena semuanya jalan di satu proses, menunggu kunci tidak membantu.
-// Jadi untuk berkas lokal setiap pernyataan dan setiap transaksi diantrekan satu per satu. Basis data jarak
-// jauh mengatur gilirannya sendiri di server, jadi tidak diantrekan.
+// SQLite
+
+async function bukaSqlite(): Promise<Mesin> {
+  const { DatabaseSync } = await import("node:sqlite");
+  const jalur = jalurDb();
+  if (jalur !== ":memory:") mkdirSync(dirname(jalur), { recursive: true });
+  const db = new DatabaseSync(jalur);
+  try {
+    // WAL membuat pembaca tidak tertahan penulis. busy_timeout adalah lama menunggu kunci kalau berkasnya
+    // sedang ditulis proses lain, misalnya skrip seed.
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+    // Berkas lokal dipasangi skema setiap kali dibuka: murah, dan perubahan skema langsung berlaku.
+    db.exec(readFileSync(join(process.cwd(), "db", "skema.sql"), "utf8"));
+    for (const [tabel, kolom, tipe] of KOLOM_TAMBAHAN) {
+      try {
+        db.exec(`ALTER TABLE ${tabel} ADD COLUMN ${kolom} ${tipe}`);
+      } catch (e) {
+        if (!/duplicate column/i.test(String((e as Error)?.message))) throw e;
+      }
+    }
+    jalankanSqlite(db, "INSERT INTO pengaturan (kunci, nilai) VALUES ('versi_skema', ?) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai", [
+      String(VERSI_SKEMA),
+    ]);
+  } catch (e) {
+    db.close();
+    throw e;
+  }
+  // Eksekusinya sinkron. Fungsi asinkron di sini hanya menyamakan bentuknya dengan PostgreSQL.
+  const langsung: Pelaksana = async (sql, p) => jalankanSqlite(db, sql, p);
+  return {
+    jenis: "sqlite",
+    jalan: (sql, p) => antre(() => langsung(sql, p)),
+    transaksi: (fn) =>
+      antre(async () => {
+        // BEGIN IMMEDIATE mengambil kunci tulis sejak awal, jadi dua booking yang berebut aset diproses bergantian.
+        db.exec("BEGIN IMMEDIATE");
+        try {
+          const hasil = await keadaan().transaksi.run(langsung, fn);
+          db.exec("COMMIT");
+          return hasil;
+        } catch (e) {
+          if (db.isTransaction) db.exec("ROLLBACK");
+          throw e;
+        }
+      }),
+    tutup: async () => db.close(),
+  };
+}
+
+function jalankanSqlite(db: DatabaseSync, sql: string, p: P[]): Baris[] {
+  // node:sqlite mengikat angka JavaScript sebagai REAL. Bilangan bulat diikat sebagai BigInt supaya tersimpan
+  // dan dibandingkan sebagai INTEGER (angka 5 di kolom TEXT menjadi '5', bukan '5.0').
+  const nilai = p.map((v) => (typeof v === "number" && Number.isSafeInteger(v) ? BigInt(v) : v));
+  return db.prepare(sql).all(...nilai) as Baris[];
+}
+
+// Berkas SQLite hanya punya satu koneksi di proses ini. Selama transaksi terbuka (antara BEGIN dan COMMIT),
+// pernyataan dari permintaan lain yang jalan di koneksi yang sama akan ikut masuk ke transaksi itu. Jadi
+// setiap pernyataan di luar transaksi dan setiap transaksi diantrekan satu per satu. Pernyataan di dalam
+// transaksi dikenali lewat AsyncLocalStorage dan dijalankan langsung tanpa antre.
 function antre<T>(fn: () => Promise<T>): Promise<T> {
-  if (ALAMAT_JAUH) return fn();
   const k = keadaan();
   const hasil = k.ekor.then(fn, fn);
   k.ekor = hasil.then(
@@ -152,50 +186,143 @@ function antre<T>(fn: () => Promise<T>): Promise<T> {
   return hasil;
 }
 
-async function dalamTransaksi<T>(klien: Client, fn: () => Promise<T> | T): Promise<T> {
-  // Mode "write" memulai dengan BEGIN IMMEDIATE: kunci tulis diambil sejak awal, jadi dua booking yang berebut
-  // aset diproses bergantian. Di Turso transaksi seperti ini harus selesai dalam 5 detik.
-  const tx = await klien.transaction("write");
+// PostgreSQL
+
+async function bukaPostgres(): Promise<Mesin> {
+  if (SKEMA_PG && !/^[a-z_][a-z0-9_]{0,62}$/.test(SKEMA_PG)) {
+    throw new Error("SKEMA_PG hanya boleh berisi huruf kecil, angka, dan garis bawah.");
+  }
+  const { default: pg } = await import("pg");
+  const pool = new pg.Pool({
+    connectionString: ALAMAT_PG,
+    max: 5,
+    // PostgreSQL mengirim int8 (COUNT dan kolom BIGINT, OID 20) dan numeric (SUM dari BIGINT, OID 1700) sebagai
+    // teks supaya presisinya utuh. Angka di aplikasi ini jauh di bawah 2^53, jadi aman diubah ke Number.
+    types: {
+      getTypeParser: ((oid: number, format?: "text" | "binary") =>
+        oid === 20 || oid === 1700 ? (v: string) => Number(v) : pg.types.getTypeParser(oid, format)) as typeof pg.types.getTypeParser,
+    },
+    ...(SKEMA_PG ? { options: `-c search_path=${SKEMA_PG}` } : {}),
+  });
+  // Koneksi yang menganggur bisa diputus server (misalnya Neon yang tertidur). Tanpa penangan ini galatnya
+  // menghentikan proses. Pool membuka koneksi baru saat dibutuhkan lagi.
+  pool.on("error", (e) => console.warn(`Koneksi PostgreSQL yang menganggur terputus: ${e.message}`));
   try {
-    const hasil = await keadaan().transaksi.run(tx, fn);
-    await tx.commit();
+    await pasangSkemaPg(pool);
+  } catch (e) {
+    await pool.end();
+    throw e;
+  }
+  return {
+    jenis: "postgres",
+    // Di luar transaksi tidak perlu antre: setiap pernyataan memakai koneksi sendiri dari pool.
+    jalan: pelaksanaPg(pool),
+    transaksi: (fn) =>
+      dalamTransaksiPg(pool, async (klien) => {
+        // Kunci tulis untuk seluruh basis data, supaya transaksi diproses satu per satu seperti BEGIN IMMEDIATE
+        // di SQLite. Cek ketersediaan aset saat booking bergantung pada sifat ini. Kuncinya lepas sendiri saat
+        // COMMIT atau ROLLBACK.
+        await klien.query(`SELECT pg_advisory_xact_lock(${KUNCI_TULIS})`);
+        return keadaan().transaksi.run(pelaksanaPg(klien), fn);
+      }),
+    tutup: () => pool.end(),
+  };
+}
+
+function pelaksanaPg(k: Pool | PoolClient): Pelaksana {
+  return async (sql, p) => (await k.query<Baris>(ubahTanda(sql), p)).rows;
+}
+
+// Tanda ? diganti $1, $2, dan seterusnya. Tanda tanya di dalam teks bertanda kutip tunggal dibiarkan.
+export function ubahTanda(sql: string): string {
+  let n = 0;
+  let kutip = false;
+  let hasil = "";
+  for (const c of sql) {
+    if (c === "'") kutip = !kutip;
+    hasil += c === "?" && !kutip ? `$${++n}` : c;
+  }
+  return hasil;
+}
+
+async function dalamTransaksiPg<T>(pool: Pool, fn: (klien: PoolClient) => Promise<T>): Promise<T> {
+  const klien = await pool.connect();
+  let rusak: Error | undefined;
+  try {
+    await klien.query("BEGIN");
+    const hasil = await fn(klien);
+    await klien.query("COMMIT");
     return hasil;
   } catch (e) {
-    // Transaksi bisa saja sudah ditutup server (misalnya kena batas waktu), jadi galat rollback diabaikan.
-    await tx.rollback().catch(() => undefined);
+    await klien.query("ROLLBACK").catch((g: Error) => {
+      rusak = g;
+    });
     throw e;
   } finally {
-    tx.close();
+    // Koneksi yang gagal di-ROLLBACK dibuang dari pool supaya transaksinya yang menggantung tidak dipakai ulang.
+    klien.release(rusak);
   }
 }
 
-type P = InValue;
-
-async function eksekusi(sql: string, args: P[]): Promise<ResultSet> {
-  const tx = keadaan().transaksi.getStore();
-  if (tx) return tx.execute({ sql, args });
-  const klien = await buka();
-  return antre(() => klien.execute({ sql, args }));
+// Skema dipasang di dalam transaksi berkunci, supaya dua server yang bangun bersamaan tidak memasangnya
+// berbarengan. Versi dicek dulu di luar transaksi dengan satu kueri murah, supaya server yang baru bangun
+// tidak mengirim seluruh skema setiap kali.
+async function pasangSkemaPg(pool: Pool): Promise<void> {
+  if (SKEMA_PG) await pool.query(`CREATE SCHEMA IF NOT EXISTS ${SKEMA_PG}`);
+  if ((await versiPg(pool)) >= VERSI_SKEMA) return;
+  await dalamTransaksiPg(pool, async (klien) => {
+    await klien.query(`SELECT pg_advisory_xact_lock(${KUNCI_SKEMA})`);
+    // Server lain mungkin sudah memasangnya selagi kunci ini ditunggu.
+    if ((await versiPg(klien)) >= VERSI_SKEMA) return;
+    await klien.query(readFileSync(join(process.cwd(), "db", "skema-pg.sql"), "utf8"));
+    await klien.query("INSERT INTO pengaturan (kunci, nilai) VALUES ('versi_skema', $1) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai", [
+      String(VERSI_SKEMA),
+    ]);
+  });
 }
 
-// Baris dari klien membawa indeks tersembunyi selain nama kolom. Disalin menjadi objek biasa supaya aman dioper
-// ke komponen klien dan dibandingkan di uji.
+async function versiPg(k: Pool | PoolClient): Promise<number> {
+  // Tabel pengaturan belum ada berarti basis datanya masih kosong. Keberadaannya dicek lewat to_regclass,
+  // karena kueri yang gagal di dalam transaksi PostgreSQL membatalkan seluruh transaksinya.
+  const ada = (await k.query<{ ada: boolean }>("SELECT to_regclass('pengaturan') IS NOT NULL AS ada")).rows[0].ada;
+  if (!ada) return 0;
+  const baris = (await k.query<{ nilai: string }>("SELECT nilai FROM pengaturan WHERE kunci = 'versi_skema'")).rows[0];
+  return Number(baris?.nilai ?? 0);
+}
+
+// API untuk seluruh aplikasi
+
+async function eksekusi(sql: string, p: P[]): Promise<Baris[]> {
+  const dalam = keadaan().transaksi.getStore();
+  if (dalam) return dalam(sql, p);
+  return (await buka()).jalan(sql, p);
+}
+
+// Baris dari kedua mesin bisa berupa objek tanpa prototipe. Disalin menjadi objek biasa supaya aman dioper ke
+// komponen klien dan dibandingkan di uji.
 function polos<T>(baris: unknown): T {
   return { ...(baris as object) } as T;
 }
 
 export async function semua<T>(sql: string, ...p: P[]): Promise<T[]> {
-  return (await eksekusi(sql, p)).rows.map((b) => polos<T>(b));
+  return (await eksekusi(sql, p)).map((b) => polos<T>(b));
 }
 
 export async function satu<T>(sql: string, ...p: P[]): Promise<T | undefined> {
-  const baris = (await eksekusi(sql, p)).rows[0];
+  const baris = (await eksekusi(sql, p))[0];
   return baris === undefined ? undefined : polos<T>(baris);
 }
 
-// Menjalankan pernyataan tulis. Mengembalikan id baris yang baru disisipkan.
-export async function jalankan(sql: string, ...p: P[]): Promise<number> {
-  return Number((await eksekusi(sql, p)).lastInsertRowid ?? 0);
+// Menjalankan pernyataan tulis tanpa hasil.
+export async function jalankan(sql: string, ...p: P[]): Promise<void> {
+  await eksekusi(sql, p);
+}
+
+// Menjalankan satu INSERT dan mengembalikan id baris barunya. RETURNING didukung kedua mesin.
+export async function sisip(sql: string, ...p: P[]): Promise<number> {
+  if (!/^\s*INSERT\s/i.test(sql)) throw new Error("sisip() hanya untuk pernyataan INSERT.");
+  const baris = (await eksekusi(`${sql} RETURNING id`, p))[0];
+  return Number(baris?.id);
 }
 
 // Menjalankan fn di dalam satu transaksi tulis: semua berhasil atau tidak ada yang tersimpan. Pemanggilan di
@@ -203,6 +330,5 @@ export async function jalankan(sql: string, ...p: P[]): Promise<number> {
 // karena pernyataan yang baru jalan sesudah fn selesai akan mengenai transaksi yang sudah ditutup.
 export async function transaksi<T>(fn: () => Promise<T> | T): Promise<T> {
   if (keadaan().transaksi.getStore()) return fn();
-  const klien = await buka();
-  return antre(() => dalamTransaksi(klien, fn));
+  return (await buka()).transaksi(fn);
 }

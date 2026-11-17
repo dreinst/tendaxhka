@@ -3,6 +3,8 @@ import { after, test } from "node:test";
 
 process.env.MODE_DEMO = "1";
 process.env.DB_PATH = ":memory:";
+// Mode demo selalu memakai SQLite. Alamat PostgreSQL dari lingkungan pemanggil tidak boleh ikut terbawa.
+delete process.env.DATABASE_URL;
 delete process.env.SANDI_DEMO;
 
 const { buka, satu, tutup } = await import("../src/lib/db.ts");

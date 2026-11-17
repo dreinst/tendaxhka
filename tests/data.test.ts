@@ -1,19 +1,23 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { siapkanBasisUji } from "./basis-uji.ts";
 
-process.env.DB_PATH = ":memory:";
+const buang = siapkanBasisUji(":memory:");
 
 const { ambilPesanan, biayaBulan, bulanTerkunci, cabutSesiLain, daftarLog, daftarPesanan, galatStatus, galatUbahPesanan, lihatNilai, salinPesanan, setStatusPesanan, kekurangan, kunciBulan, labaBulan, nomorBerikut, pendapatanBulan } = await import("../src/lib/data.ts");
 const { waktuKini } = await import("../src/lib/format.ts");
-const { jalankan, semua: satuan, tutup } = await import("../src/lib/db.ts");
+const { jalankan, semua: satuan, sisip, tutup } = await import("../src/lib/db.ts");
 
-after(() => tutup());
+after(async () => {
+  await tutup();
+  await buang();
+});
 
-const tenda = await jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('T1', 'Tenda', 'Tenda', 10, 1000000)");
-const kontak = await jalankan("INSERT INTO kontak (nama, dibuat) VALUES ('Uji', '2026-11-01')");
+const tenda = await sisip("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('T1', 'Tenda', 'Tenda', 10, 1000000)");
+const kontak = await sisip("INSERT INTO kontak (nama, dibuat) VALUES ('Uji', '2026-11-01')");
 
 async function pesanan(nomor: string, mulai: string, selesai: string, status: string, jumlah: number): Promise<number> {
-  const id = await jalankan(
+  const id = await sisip(
     "INSERT INTO pesanan (nomor, kontak_id, acara, mulai, selesai, status, dibuat) VALUES (?, ?, 'Acara', ?, ?, ?, '2026-11-01')",
     nomor, kontak, mulai, selesai, status,
   );
@@ -65,18 +69,18 @@ test("bulan yang ditutup memakai angka beku", async () => {
 
 test("nomor pesanan berurut per bulan", async () => {
   assert.equal(await nomorBerikut("2027-03-09"), "TI-2703-001");
-  await jalankan("INSERT INTO pesanan (nomor, kontak_id, acara, mulai, selesai, dibuat) VALUES ('TI-2703-001', ?, 'X', '2027-03-10', '2027-03-10', '2027-03-09')", kontak);
+  await sisip("INSERT INTO pesanan (nomor, kontak_id, acara, mulai, selesai, dibuat) VALUES ('TI-2703-001', ?, 'X', '2027-03-10', '2027-03-10', '2027-03-09')", kontak);
   assert.equal(await nomorBerikut("2027-03-20"), "TI-2703-002");
 });
 
 test("hari terpadat menghitung booking dan perawatan sejak tanggal awal", async () => {
   const { hariTerpadat } = await import("../src/lib/data.ts");
-  const kursi = await jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('K1', 'Kursi', 'Kursi', 5, 1000)");
+  const kursi = await sisip("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('K1', 'Kursi', 'Kursi', 5, 1000)");
   const baris = (id: number, n: number) =>
     jalankan("INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, ?, 'Kursi', ?, 1, 1000)", id, kursi, n);
   assert.equal(await hariTerpadat(kursi, "2026-12-01"), null);
   const pesan = (nomor: string, mulai: string, selesai: string, status: string) =>
-    jalankan(
+    sisip(
       "INSERT INTO pesanan (nomor, kontak_id, acara, mulai, selesai, status, dibuat) VALUES (?, ?, 'Acara', ?, ?, ?, '2026-11-01')",
       nomor, kontak, mulai, selesai, status,
     );
@@ -103,7 +107,7 @@ test("jejak audit tercatat dan tidak bisa diubah atau dihapus", async () => {
 
 test("unit dirawat menjumlahkan perawatan yang masih berjalan", async () => {
   const { unitDirawat } = await import("../src/lib/data.ts");
-  const lampu = await jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('L1', 'Lampu', 'Lampu', 10, 1000)");
+  const lampu = await sisip("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('L1', 'Lampu', 'Lampu', 10, 1000)");
   assert.equal(await unitDirawat(lampu, "2026-12-01"), 0);
   await jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai) VALUES (?, 4, '2026-11-20')", lampu);
   await jalankan("INSERT INTO perawatan (aset_id, jumlah, mulai, selesai) VALUES (?, 3, '2026-11-10', '2026-12-05')", lampu);
@@ -114,10 +118,10 @@ test("unit dirawat menjumlahkan perawatan yang masih berjalan", async () => {
 
 test("foto aset berurut dengan sampul lebih dulu dan ikut terhapus bersama asetnya", async () => {
   const { fotoAset, fotoPerAset } = await import("../src/lib/data.ts");
-  const a = await jalankan("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('F1', 'Tenda Foto', 'Tenda', 1, 1000)");
-  await jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'a.jpg', 1)", a);
-  await jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'b.jpg', 2)", a);
-  const sampul = await jalankan("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'c.jpg', 0)", a);
+  const a = await sisip("INSERT INTO aset (kode, nama, kategori, jumlah, harga) VALUES ('F1', 'Tenda Foto', 'Tenda', 1, 1000)");
+  await sisip("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'a.jpg', 1)", a);
+  await sisip("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'b.jpg', 2)", a);
+  const sampul = await sisip("INSERT INTO aset_foto (aset_id, berkas, urutan) VALUES (?, 'c.jpg', 0)", a);
   assert.deepEqual((await fotoAset(a)).map((f) => f.berkas), ["c.jpg", "a.jpg", "b.jpg"]);
   assert.equal((await fotoAset(a))[0].id, sampul);
   assert.deepEqual((await fotoPerAset()).get(a), ["c.jpg", "a.jpg", "b.jpg"]);
@@ -191,8 +195,8 @@ test("pendapatan akrual tidak menghitung penawaran", async () => {
 });
 
 test("mengganti sandi sendiri mencabut sesi lain dan mempertahankan sesi saat ini", async () => {
-  const u = await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('Uji Sesi', 'ujisesi', 'x', 'admin')");
-  const lain = await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('Lain', 'lain', 'x', 'admin')");
+  const u = await sisip("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('Uji Sesi', 'ujisesi', 'x', 'admin')");
+  const lain = await sisip("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('Lain', 'lain', 'x', 'admin')");
   const depan = "2099-01-01T00:00:00.000Z";
   for (const [t, p] of [["saat-ini", u], ["perangkat-b", u], ["perangkat-c", u], ["milik-lain", lain]] as const) {
     await jalankan("INSERT INTO sesi (token, pengguna_id, kedaluwarsa) VALUES (?, ?, ?)", t, p, depan);
@@ -235,4 +239,14 @@ test("gudang melihat nilai pesanan hanya kalau dibuka di pengaturan, peran lain 
   assert.equal(await lihatNilai("kru"), false);
   await jalankan("UPDATE pengaturan SET nilai = 'tidak' WHERE kunci = 'gudang_lihat_nilai'");
   assert.equal(await lihatNilai("gudang"), false);
+});
+
+test("uang di atas 2,1 miliar tersimpan, dijumlahkan, dan keluar sebagai angka tanpa meluap", async () => {
+  const id = await pesanan("BESAR", "2028-01-01", "2028-01-02", "penawaran", 1);
+  // jumlah dan hari di batas atasnya (100.000): hasil kali keduanya sudah melewati batas INTEGER 32-bit.
+  await jalankan("INSERT INTO pesanan_baris (pesanan_id, aset_id, deskripsi, jumlah, hari, harga) VALUES (?, NULL, 'Besar', 100000, 100000, 1)", id);
+  await jalankan("INSERT INTO pembayaran (pesanan_id, tanggal, jumlah) VALUES (?, '2028-01-01', 50000000000)", id);
+  const p = (await ambilPesanan(id))!;
+  assert.deepEqual([p.subtotal, p.dibayar], [10_001_000_000, 50_000_000_000]);
+  assert.equal(await pendapatanBulan("2028-01", "kas"), 50_000_000_000);
 });

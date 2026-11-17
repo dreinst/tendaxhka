@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { alamatIp, bukaSesi, COOKIE_SESI, kenaliPerangkat, perangkatDikenal, tutupSesi, wajib } from "./auth.ts";
 import { ambilPesanan, bulanTerkunci, cabutSesiLain, catatLog, galatStatus, galatUbahPesanan, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, salinPesanan, setStatusPesanan, unitDirawat, type Aset } from "./data.ts";
-import { jalankan, satu, semua, transaksi } from "./db.ts";
+import { jalankan, satu, semua, sisip, transaksi } from "./db.ts";
 import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
 import { hapusBerkasFoto, simpanBerkasFoto } from "./foto.ts";
 import { bacaChecklist, bacaRupiah, bulanSah, galatLamaPesanan, MAKS_FOTO_PER_ASET, MAKS_JUMLAH, MAKS_UANG, MAKS_UKURAN_FOTO, nilaiBaris, selisihHari, tambahHari, tampakJpeg, tanggalSah, totalPesanan, type ButirChecklist } from "./hitung.ts";
@@ -95,7 +95,7 @@ export async function masuk(fd: FormData): Promise<void> {
     if (!nama || !/^[a-z0-9._-]{3,30}$/.test(username) || sandi.length < 8) {
       gagal("/masuk", "Isi nama, username (3 sampai 30 huruf kecil atau angka), dan kata sandi minimal 8 karakter.");
     }
-    const id = await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, 'admin')", nama, username, hashSandi(sandi));
+    const id = await sisip("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, 'admin')", nama, username, hashSandi(sandi));
     await catatLog({ id, nama }, "Buat admin pertama", `Username ${username}`);
     await berhasil(id);
   }
@@ -178,7 +178,7 @@ export async function simpanKontak(fd: FormData): Promise<void> {
     );
     redirect(kembali);
   }
-  const baru = await jalankan(
+  const baru = await sisip(
     "INSERT INTO kontak (nama, perusahaan, telepon, email, jenis, sumber, tahap, kebutuhan, tindak_lanjut, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ...isi,
     hariIni(),
@@ -259,7 +259,7 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
       await jalankan("DELETE FROM pesanan_baris WHERE pesanan_id = ?", id);
     } else {
       const hari = hariIni();
-      id = await jalankan(
+      id = await sisip(
         "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, diskon, catatan, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         await nomorBerikut(hari),
         kontakId,
@@ -403,8 +403,7 @@ export async function hapusPesanan(id: number): Promise<void> {
     if (!p) throw new Galat("Pesanan tidak ditemukan.");
     if (p.status !== "penawaran" && p.status !== "batal") throw new Galat("Hanya penawaran atau pesanan batal yang bisa dihapus.");
     if (p.dibayar > 0) throw new Galat("Pesanan ini punya pembayaran.");
-    // Anak-anak pesanan dihapus terang-terangan. Di berkas lokal foreign key sudah melakukannya sendiri
-    // (ON DELETE CASCADE dan SET NULL), tetapi di Turso belum bisa dipastikan foreign key-nya aktif.
+    // Anak-anak pesanan dihapus terang-terangan, tanpa bergantung pada ON DELETE CASCADE dan SET NULL di skema.
     await jalankan("DELETE FROM pesanan_baris WHERE pesanan_id = ?", id);
     await jalankan("DELETE FROM tugas WHERE pesanan_id = ?", id);
     await jalankan("DELETE FROM pembayaran WHERE pesanan_id = ?", id);
@@ -543,7 +542,7 @@ export async function simpanAset(fd: FormData): Promise<void> {
     const peringatan = await peringatanStok(id, Number(isi[5]), hariIni());
     if (peringatan) gagal(kembali, `Aset disimpan. ${peringatan}`);
   } else {
-    const baru = await jalankan(
+    const baru = await sisip(
       "INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi, tampil_web, aktif, kapasitas, cocok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ...isi,
     );

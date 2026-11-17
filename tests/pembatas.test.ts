@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { siapkanBasisUji } from "./basis-uji.ts";
 
-process.env.DB_PATH = ":memory:";
+const buang = siapkanBasisUji(":memory:");
 
 const { batasMasuk, bersihkanPembatas, catatPercobaan, catatPerangkat, hitungan, JENDELA_MASUK, lupakanPerangkat, lupakanPercobaan, melewatiBatas, perangkatMilik } = await import("../src/lib/pembatas.ts");
-const { jalankan, semua, tutup } = await import("../src/lib/db.ts");
+const { jalankan, semua, sisip, tutup } = await import("../src/lib/db.ts");
 
-after(() => tutup());
+after(async () => {
+  await tutup();
+  await buang();
+});
 
 const MENIT = 60_000;
 const T0 = Date.parse("2026-11-17T03:00:00Z");
@@ -65,8 +69,8 @@ test("dengan alamat: lima kali per akun, dua puluh kali per alamat, dan hitungan
 });
 
 test("perangkat dikenal hanya untuk akun yang pernah masuk darinya, selama belum kedaluwarsa dan akunnya aktif", async () => {
-  const a = await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('A', 'akun-a', 'x', 'sales')");
-  const b = await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('B', 'akun-b', 'x', 'gudang')");
+  const a = await sisip("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('A', 'akun-a', 'x', 'sales')");
+  const b = await sisip("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('B', 'akun-b', 'x', 'gudang')");
   const hash = "c".repeat(64);
   const habis = new Date(T0 + 90 * 864e5);
   await catatPerangkat(hash, a, habis);
@@ -89,7 +93,7 @@ test("perangkat dikenal hanya untuk akun yang pernah masuk darinya, selama belum
 });
 
 test("hitungan lama dan perangkat kedaluwarsa dibuang", async () => {
-  const u = await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('C', 'akun-c', 'x', 'kru')");
+  const u = await sisip("INSERT INTO pengguna (nama, username, sandi, peran) VALUES ('C', 'akun-c', 'x', 'kru')");
   await catatPercobaan("lama", 15, T0 - 25 * 3600_000);
   await catatPercobaan("baru", 15, T0 - 3600_000);
   await catatPerangkat("1".repeat(64), u, new Date(T0 - 1000));

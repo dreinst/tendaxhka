@@ -1,7 +1,7 @@
 // DATA CONTOH untuk mencoba sistem: akun, aset, harga, pelanggan, dan pesanan di sini semuanya karangan.
 // Dipakai oleh skrip/seed.ts di lokal dan oleh mode demo (MODE_DEMO=1) saat basis data demo masih kosong.
 import { kunciBulan, nomorBerikut, PENGATURAN_BAWAAN } from "./data.ts";
-import { jalankan, transaksi } from "./db.ts";
+import { jalankan, sisip, transaksi } from "./db.ts";
 import { hariIni } from "./format.ts";
 import { FOTO_ASET_CONTOH } from "./kredit-foto.ts";
 import { geserBulan, tambahHari } from "./hitung.ts";
@@ -43,7 +43,7 @@ export async function isiDataContoh(sandi: string): Promise<void> {
     ];
     const idAset: Record<string, number> = {};
     for (const a of aset) {
-      idAset[a[0]] = await jalankan("INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...a);
+      idAset[a[0]] = await sisip("INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...a);
     }
     // Keterangan tambahan untuk rincian barang di website: [kapasitas, cocok untuk]. Sama seperti data lain di
     // sini, angkanya contoh dan perlu diganti dengan ukuran yang sebenarnya.
@@ -80,7 +80,7 @@ export async function isiDataContoh(sandi: string): Promise<void> {
     const idKontak: number[] = [];
     for (const [i, [nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tl]] of kontak.entries()) {
       idKontak.push(
-        await jalankan(
+        await sisip(
           "INSERT INTO kontak (nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tindak_lanjut, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           nama, perusahaan, telepon, jenis, sumber, tahap, kebutuhan, tl === null ? null : tambahHari(hari, tl), tambahHari(hari, -80 + i * 12),
         ),
@@ -93,7 +93,7 @@ export async function isiDataContoh(sandi: string): Promise<void> {
       const selesai = tambahHari(mulai, lama);
       const dibuat = tambahHari(mulai, -14);
       const dipesan = status !== "penawaran";
-      const id = await jalankan(
+      const id = await sisip(
         "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, status, tgl_faktur, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         await nomorBerikut(dibuat), idKontak[k], acara, lokasi, mulai, selesai, status, status === "selesai" ? selesai : null, dibuat,
       );

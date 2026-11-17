@@ -10,9 +10,10 @@ if (process.env.NODE_ENV === "production") {
   process.exit(1);
 }
 
-// Seed hanya untuk berkas lokal. Dengan --timpa isinya dikosongkan dulu, dan itu tidak boleh mengenai Turso.
-if (process.env.TURSO_DATABASE_URL?.trim()) {
-  console.error("Seed ditolak karena TURSO_DATABASE_URL terisi. Data contoh hanya untuk berkas lokal.");
+// Seed biasanya untuk berkas SQLite lokal. Dengan --timpa isinya dikosongkan dulu, jadi PostgreSQL hanya diisi
+// kalau diminta terang-terangan dengan SEED_POSTGRES=ya, misalnya untuk basis data demo atau uji.
+if (process.env.DATABASE_URL?.trim() && process.env.SEED_POSTGRES !== "ya") {
+  console.error("Seed ditolak karena DATABASE_URL terisi. Isi SEED_POSTGRES=ya kalau basis data itu memang untuk demo atau uji.");
   process.exit(1);
 }
 

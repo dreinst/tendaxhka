@@ -1,4 +1,4 @@
-import { jalankan, satu, semua, transaksi } from "./db.ts";
+import { jalankan, satu, semua, sisip, transaksi } from "./db.ts";
 import { hariIni, rupiah, waktuKini } from "./format.ts";
 import {
   batasBulan,
@@ -153,9 +153,11 @@ export async function lihatNilai(peran: Peran): Promise<boolean> {
   return boleh(peran, "nilai.lihat") || (peran === "gudang" && (await pengaturan()).gudang_lihat_nilai === "ya");
 }
 
+// harga (BIGINT di PostgreSQL) ditaruh di depan perkalian, supaya jumlah * hari tidak dihitung sebagai INTEGER
+// 32-bit lebih dulu dan meluap.
 const PILIH_PESANAN = `
   SELECT p.*, k.nama AS kontak, k.perusahaan,
-    COALESCE((SELECT SUM(jumlah * hari * harga) FROM pesanan_baris WHERE pesanan_id = p.id), 0) AS subtotal,
+    COALESCE((SELECT SUM(harga * jumlah * hari) FROM pesanan_baris WHERE pesanan_id = p.id), 0) AS subtotal,
     COALESCE((SELECT SUM(jumlah) FROM pembayaran WHERE pesanan_id = p.id), 0) AS dibayar
   FROM pesanan p JOIN kontak k ON k.id = p.kontak_id`;
 
@@ -223,7 +225,7 @@ export async function salinPesanan(oleh: { id: number; nama: string }, id: numbe
   if (!p) throw new Error("Pesanan sumber tidak ditemukan.");
   return transaksi(async () => {
     const hari = hariIni();
-    const baru = await jalankan(
+    const baru = await sisip(
       "INSERT INTO pesanan (nomor, kontak_id, acara, lokasi, mulai, selesai, diskon, catatan, dibuat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       await nomorBerikut(hari),
       p.kontak_id,
@@ -266,8 +268,9 @@ export async function daftarPakai(
   opsi: { kecualiPesanan?: number; perawatan?: boolean; status?: string[] } = {},
 ): Promise<Pakai[]> {
   const status = opsi.status ?? ["booking", "berjalan"];
+  // Nama kolom "asetId" dikutip, karena PostgreSQL mengubah nama tanpa kutip menjadi huruf kecil.
   const sewa = await semua<Pakai>(
-    `SELECT b.aset_id AS asetId, b.jumlah, p.mulai AS awal, p.selesai AS akhir
+    `SELECT b.aset_id AS "asetId", b.jumlah, p.mulai AS awal, p.selesai AS akhir
      FROM pesanan_baris b JOIN pesanan p ON p.id = b.pesanan_id
      WHERE b.aset_id IS NOT NULL AND p.status IN (${status.map(() => "?").join(",")})
        AND p.mulai <= ? AND p.selesai >= ? AND p.id <> ?`,
@@ -278,7 +281,7 @@ export async function daftarPakai(
   );
   if (opsi.perawatan === false) return sewa;
   const rawat = await semua<Pakai>(
-    `SELECT aset_id AS asetId, jumlah, mulai AS awal, selesai AS akhir FROM perawatan
+    `SELECT aset_id AS "asetId", jumlah, mulai AS awal, selesai AS akhir FROM perawatan
      WHERE mulai <= ? AND (selesai IS NULL OR selesai >= ?)`,
     akhir,
     awal,
@@ -319,10 +322,11 @@ export async function unitDirawat(asetId: number, sejak: string): Promise<number
 export async function kekurangan(pesananId: number): Promise<string[]> {
   const p = await satu<{ mulai: string; selesai: string }>("SELECT mulai, selesai FROM pesanan WHERE id = ?", pesananId);
   if (!p) return [];
+  // Kolom aset ikut di GROUP BY karena PostgreSQL menolak kolom di luar pengelompokan.
   const butuh = await semua<{ aset_id: number; nama: string; total: number; butuh: number }>(
     `SELECT b.aset_id, a.nama || CASE WHEN a.ukuran <> '' THEN ' ' || a.ukuran ELSE '' END AS nama, a.jumlah AS total,
        SUM(b.jumlah) AS butuh
-     FROM pesanan_baris b JOIN aset a ON a.id = b.aset_id WHERE b.pesanan_id = ? GROUP BY b.aset_id`,
+     FROM pesanan_baris b JOIN aset a ON a.id = b.aset_id WHERE b.pesanan_id = ? GROUP BY b.aset_id, a.nama, a.ukuran, a.jumlah`,
     pesananId,
   );
   const pakai = await daftarPakai(p.mulai, p.selesai, { kecualiPesanan: pesananId });

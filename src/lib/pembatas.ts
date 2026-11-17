@@ -14,13 +14,14 @@ export async function hitungan(kunci: string, jendelaMenit: number, kini = Date.
   return b && kini - b.mulai < menit(jendelaMenit) ? b.jumlah : 0;
 }
 
-// Menambah satu percobaan. Jendela yang sudah lewat dimulai lagi dari satu.
+// Menambah satu percobaan. Jendela yang sudah lewat dimulai lagi dari satu. Kolom baris lama ditulis dengan nama
+// tabelnya, karena di PostgreSQL nama polos ambigu dengan excluded.
 export async function catatPercobaan(kunci: string, jendelaMenit: number, kini = Date.now()): Promise<void> {
   await jalankan(
     `INSERT INTO pembatas (kunci, mulai, jumlah) VALUES (?, ?, 1)
      ON CONFLICT (kunci) DO UPDATE SET
-       jumlah = CASE WHEN excluded.mulai - mulai >= ? THEN 1 ELSE jumlah + 1 END,
-       mulai = CASE WHEN excluded.mulai - mulai >= ? THEN excluded.mulai ELSE mulai END`,
+       jumlah = CASE WHEN excluded.mulai - pembatas.mulai >= ? THEN 1 ELSE pembatas.jumlah + 1 END,
+       mulai = CASE WHEN excluded.mulai - pembatas.mulai >= ? THEN excluded.mulai ELSE pembatas.mulai END`,
     kunci,
     kini,
     menit(jendelaMenit),
