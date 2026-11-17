@@ -94,6 +94,7 @@ Satu berkas SQLite di `data/tenda.db` (atau `DB_PATH`), dibuka lewat `node:sqlit
 | Tabel | Isi |
 |---|---|
 | `pengguna`, `sesi` | Akun dan sesi masuk |
+| `pembatas`, `perangkat` | Hitungan percobaan masuk dan formulir website, dan perangkat yang pernah berhasil masuk |
 | `pengaturan` | Pasangan kunci dan nilai |
 | `aset`, `perawatan` | Aset per jumlah dan unit yang sedang diperbaiki |
 | `aset_foto` | Nama berkas foto tiap aset. Urutan terkecil menjadi sampul di katalog |
@@ -114,6 +115,7 @@ Foto dikecilkan di browser ke sisi terpanjang 1000 piksel dan disimpan sebagai J
 - `src/lib/hitung.ts`: hitungan murni (ketersediaan, total, utilisasi, bagi hasil, hak akses).
 - `src/lib/data.ts`: kueri baca. `src/lib/aksi.ts`: semua aksi server.
 - `src/lib/auth.ts`, `src/lib/sandi.ts`: sesi dan kata sandi (scrypt, token sesi disimpan sebagai hash). Sesi habis setelah 12 jam tidak dipakai dan paling lama 14 hari sejak masuk.
+- `src/lib/pembatas.ts`: pembatas percobaan masuk dan formulir website.
 - `src/app/page.tsx`: website. `src/app/sistem/**`: halaman sistem.
 - `tests/`: uji hitungan dan uji kueri dengan basis data di memori.
 
@@ -124,7 +126,6 @@ Untuk pratinjau di hosting tanpa disk tetap seperti Vercel, isi dua variabel lin
 ```
 MODE_DEMO=1
 SANDI_DEMO=kata-sandi-minimal-8-karakter
-HEADER_IP=x-real-ip
 ```
 
 Dengan `MODE_DEMO=1`, basis data dan foto ditaruh di `/tmp/tenda-demo`, lalu diisi data contoh (`src/lib/contoh.ts`) saat masih kosong. Semua akun contoh (`admin`, `sales`, `gudang`, `kru`, `partner-tenda`, `partner-hka`) memakai `SANDI_DEMO`. Setiap halaman menampilkan pita "Versi demo" dan seluruh situs ditandai `noindex`.
@@ -134,7 +135,9 @@ Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat V
 ## Yang perlu diketahui sebelum dipakai sungguhan
 
 - SQLite butuh disk yang menetap. Sistem ini cocok di VPS atau container dengan volume, dan tidak cocok di hosting serverless yang disknya hilang tiap deploy. Kalau nanti pindah ke PostgreSQL, yang diganti adalah `src/lib/db.ts` dan beberapa sintaks SQL.
-- Pembatas percobaan masuk dan pembatas formulir website disimpan di memori proses, jadi hanya berlaku untuk satu server. Pembatas ini membaca IP dari header yang disebut `HEADER_IP` di `.env`. Isi dengan header yang ditulis proxy sendiri (misalnya `x-real-ip`), karena `x-forwarded-for` dari pengunjung bisa dipalsukan. Satu username dikunci 15 menit setelah 10 percobaan dari alamat mana pun.
+- Pembatas percobaan masuk dan pembatas formulir website disimpan di basis data, jadi berlaku di semua server dan tidak hilang saat server dimulai ulang. Yang dihitung hanya sandi yang salah, dan percobaan yang sudah ditolak tidak menambah hitungan. Batas per 15 menit: 5 kali per alamat untuk satu username, 20 kali per alamat untuk semua username, dan 10 kali per username dari perangkat yang belum pernah berhasil masuk.
+- Perangkat yang pernah berhasil masuk dikenali lewat cookie selama 90 hari dan punya jatah percobaan sendiri. Jadi orang luar yang menghabiskan jatah sebuah username tidak ikut mengunci pemilik akunnya. Yang masih bisa tertahan sampai 15 menit hanya login akun itu dari perangkat baru.
+- Alamat pengunjung dibaca dari header yang disebut `HEADER_IP` di `.env`. Isi dengan header yang ditulis proxy sendiri (misalnya `x-real-ip` dari Nginx), karena `x-forwarded-for` dari pengunjung bisa dipalsukan. Di Vercel tidak perlu diisi, karena `x-real-ip` ditulis ulang oleh Vercel. Tanpa alamat, batas per alamat tidak dipakai dan yang berlaku hanya batas per username dan per perangkat.
 - Isi identitas usaha, kontak, dan rekening di Pengaturan. Selama kosong, website tidak menampilkan kontak.
 - Aset yang belum punya foto tampil dengan ilustrasi SVG pengganti di katalog. Tambahkan foto asli di halaman tiap aset.
 - Aset dilacak per jumlah, belum per unit bernomor seri.

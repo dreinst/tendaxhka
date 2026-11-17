@@ -4,6 +4,7 @@ import { cache } from "react";
 import type { Pengguna } from "./data.ts";
 import { jalankan, MODE_DEMO, satu } from "./db.ts";
 import { boleh, type Hak } from "./hitung.ts";
+import { catatPerangkat, perangkatMilik } from "./pembatas.ts";
 import { bacaSesiDemo, hashToken, tokenBaru, tokenSesiDemo, turunkanRahasiaDemo } from "./sandi.ts";
 
 export const COOKIE_SESI = "sesi_tenda";
@@ -96,27 +97,43 @@ export async function tutupSesi(): Promise<void> {
   jar.delete(COOKIE_SESI);
 }
 
-// Pembatas sederhana di memori proses. Cukup untuk sistem internal dengan satu server.
-const catatan = new Map<string, number[]>();
-const JENDELA_TERLAMA = 60 * 60_000;
+// Cookie perangkat: token acak yang dipasang sesudah berhasil masuk dan bertahan 90 hari. Isinya tidak
+// memberi akses apa pun, hanya membuat percobaan masuk dari perangkat ini dihitung terpisah (pembatas.ts).
+const COOKIE_PERANGKAT = "perangkat_tenda";
+const UMUR_PERANGKAT_HARI = 90;
+const TOKEN_SAH = /^[0-9a-f]{64}$/;
 
-export function terlaluSering(kunci: string, maks: number, jendelaMenit: number): boolean {
-  const kini = Date.now();
-  // Kunci lama dibuang supaya peta ini tidak terus membesar kalau dibanjiri kunci acak.
-  if (catatan.size > 5000) {
-    for (const [k, daftar] of catatan) if (kini - daftar[daftar.length - 1] > JENDELA_TERLAMA) catatan.delete(k);
-  }
-  const baru = (catatan.get(kunci) ?? []).filter((t) => kini - t < jendelaMenit * 60_000);
-  baru.push(kini);
-  catatan.set(kunci, baru);
-  return baru.length > maks;
+// Hash token perangkat kalau perangkat di permintaan ini pernah berhasil masuk ke akun itu, selain itu null.
+export async function perangkatDikenal(username: string): Promise<string | null> {
+  const token = (await cookies()).get(COOKIE_PERANGKAT)?.value ?? "";
+  if (!TOKEN_SAH.test(token)) return null;
+  const hash = hashToken(token);
+  return perangkatMilik(hash, username) ? hash : null;
 }
 
-// Alamat IP pengunjung. Header seperti x-forwarded-for bisa diisi bebas oleh pengirim, jadi hanya dipercaya
-// kalau HEADER_IP di .env menunjuk header yang ditulis ulang oleh proxy sendiri (misalnya x-real-ip dari
-// Nginx atau cf-connecting-ip dari Cloudflare). Tanpa itu, semua pengunjung dianggap satu alamat.
-export async function alamatIp(): Promise<string> {
-  const nama = process.env.HEADER_IP?.trim().toLowerCase();
-  if (!nama) return "tanpa-ip";
-  return (await headers()).get(nama)?.split(",")[0].trim().slice(0, 64) || "tanpa-ip";
+// Dipanggil sesudah berhasil masuk. Token yang sudah ada dipakai lagi supaya perangkat bersama tetap dikenal
+// untuk akun lain yang pernah masuk dari sana.
+export async function kenaliPerangkat(penggunaId: number): Promise<void> {
+  const jar = await cookies();
+  const lama = jar.get(COOKIE_PERANGKAT)?.value ?? "";
+  const token = TOKEN_SAH.test(lama) ? lama : tokenBaru().token;
+  const kedaluwarsa = new Date(Date.now() + UMUR_PERANGKAT_HARI * 864e5);
+  catatPerangkat(hashToken(token), penggunaId, kedaluwarsa);
+  jar.set(COOKIE_PERANGKAT, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/masuk",
+    expires: kedaluwarsa,
+  });
+}
+
+// Alamat IP pengunjung, atau null kalau tidak bisa dipastikan. Header seperti x-forwarded-for bisa diisi
+// bebas oleh pengirim, jadi hanya dipercaya kalau HEADER_IP di .env menunjuk header yang ditulis ulang oleh
+// proxy sendiri (misalnya x-real-ip dari Nginx atau cf-connecting-ip dari Cloudflare). Di Vercel, x-real-ip
+// ditulis ulang oleh Vercel, jadi dipakai tanpa perlu diatur.
+export async function alamatIp(): Promise<string | null> {
+  const nama = process.env.HEADER_IP?.trim().toLowerCase() || (process.env.VERCEL ? "x-real-ip" : "");
+  if (!nama) return null;
+  return (await headers()).get(nama)?.split(",")[0].trim().slice(0, 64) || null;
 }

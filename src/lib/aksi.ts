@@ -3,12 +3,13 @@
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { alamatIp, bukaSesi, COOKIE_SESI, terlaluSering, tutupSesi, wajib } from "./auth.ts";
+import { alamatIp, bukaSesi, COOKIE_SESI, kenaliPerangkat, perangkatDikenal, tutupSesi, wajib } from "./auth.ts";
 import { ambilPesanan, bulanTerkunci, cabutSesiLain, catatLog, galatStatus, galatUbahPesanan, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, salinPesanan, setStatusPesanan, unitDirawat, type Aset } from "./data.ts";
 import { jalankan, satu, semua, transaksi } from "./db.ts";
 import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
 import { hapusBerkasFoto, simpanBerkasFoto } from "./foto.ts";
 import { bacaChecklist, bacaRupiah, bulanSah, galatLamaPesanan, MAKS_FOTO_PER_ASET, MAKS_JUMLAH, MAKS_UANG, MAKS_UKURAN_FOTO, nilaiBaris, selisihHari, tambahHari, tampakJpeg, tanggalSah, totalPesanan, type ButirChecklist } from "./hitung.ts";
+import { batasMasuk, bersihkanPembatas, catatPercobaan, JENDELA_MASUK, lupakanPerangkat, lupakanPercobaan, melewatiBatas } from "./pembatas.ts";
 import { cocokSandi, cocokSandiPalsu, hashSandi, hashToken, samaAman } from "./sandi.ts";
 
 // Galat yang pesannya boleh ditampilkan ke pengguna. Galat lain dibiarkan naik ke halaman error.
@@ -68,38 +69,42 @@ function pastikanTerbuka(tanggal: string): void {
 export async function masuk(fd: FormData): Promise<void> {
   const username = teks(fd, "username", 60).toLowerCase();
   const sandi = String(fd.get("sandi") ?? "");
-  // Tiga batas sekaligus: per alamat dan username, per username dari alamat mana pun (supaya mengganti
-  // alamat tidak membuka percobaan baru), dan per alamat untuk semua username (menebak banyak akun).
   const ip = await alamatIp();
-  const kebanyakan = [
-    terlaluSering(`masuk:${ip}:${username}`, 5, 15),
-    terlaluSering(`masuk-akun:${username}`, 10, 15),
-    terlaluSering(`masuk-ip:${ip}`, ip === "tanpa-ip" ? 60 : 20, 15),
-  ].some(Boolean);
-  if (kebanyakan) gagal("/masuk", "Terlalu banyak percobaan. Coba lagi 15 menit lagi.");
+  // Rincian hitungan dan alasannya ada di batasMasuk (pembatas.ts).
+  const batas = batasMasuk(ip, username, await perangkatDikenal(username));
+  if (melewatiBatas(batas, JENDELA_MASUK)) gagal("/masuk", "Terlalu banyak percobaan. Coba lagi 15 menit lagi.");
+  const salah: (pesan: string) => never = (pesan) => {
+    for (const b of batas) catatPercobaan(b.kunci, JENDELA_MASUK);
+    gagal("/masuk", pesan);
+  };
+  const berhasil = async (id: number): Promise<never> => {
+    lupakanPercobaan(batas.filter((b) => b.lupakan).map((b) => b.kunci));
+    bersihkanPembatas();
+    await kenaliPerangkat(id);
+    await bukaSesi(id);
+    redirect("/sistem");
+  };
 
   // Basis data tanpa pengguna: formulir masuk membuat akun admin pertama. Supaya orang asing yang kebetulan
   // membuka /masuk lebih dulu tidak bisa merebutnya, formulir ini meminta kode SETUP_TOKEN dari .env.
   if (!satu("SELECT 1 FROM pengguna LIMIT 1")) {
     const kode = process.env.SETUP_TOKEN ?? "";
     if (kode.length < 16) gagal("/masuk", "SETUP_TOKEN di .env belum diisi atau kurang dari 16 karakter.");
-    if (!samaAman(String(fd.get("kode") ?? ""), kode)) gagal("/masuk", "Kode penyiapan salah.");
+    if (!samaAman(String(fd.get("kode") ?? ""), kode)) salah("Kode penyiapan salah.");
     const nama = teks(fd, "nama", 80);
     if (!nama || !/^[a-z0-9._-]{3,30}$/.test(username) || sandi.length < 8) {
       gagal("/masuk", "Isi nama, username (3 sampai 30 huruf kecil atau angka), dan kata sandi minimal 8 karakter.");
     }
     const id = jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, 'admin')", nama, username, hashSandi(sandi));
     catatLog({ id, nama }, "Buat admin pertama", `Username ${username}`);
-    await bukaSesi(id);
-    redirect("/sistem");
+    await berhasil(id);
   }
 
   const u = satu<{ id: number; nama: string; sandi: string }>("SELECT id, nama, sandi FROM pengguna WHERE username = ? AND aktif = 1", username);
   const cocok = u ? cocokSandi(sandi, u.sandi) : cocokSandiPalsu(sandi);
-  if (!u || !cocok) gagal("/masuk", "Username atau kata sandi salah.");
-  catatLog(u, "Masuk", ip === "tanpa-ip" ? "" : `IP ${ip}`);
-  await bukaSesi(u.id);
-  redirect("/sistem");
+  if (!u || !cocok) salah("Username atau kata sandi salah.");
+  catatLog(u, "Masuk", ip ? `IP ${ip}` : "");
+  await berhasil(u.id);
 }
 
 export async function keluar(): Promise<void> {
@@ -113,12 +118,10 @@ export async function kirimPermintaan(fd: FormData): Promise<void> {
   // Isian jebakan untuk bot. Manusia tidak melihatnya.
   if (teks(fd, "situs")) redirect("/?terkirim=1#kontak");
   // Batas per alamat, ditambah batas total supaya CRM tidak bisa dibanjiri walau alamatnya dipalsukan.
+  // Yang dihitung hanya kiriman yang benar-benar masuk ke CRM.
   const ip = await alamatIp();
-  const kebanyakan = [
-    ip !== "tanpa-ip" && terlaluSering(`permintaan:${ip}`, 5, 60),
-    terlaluSering("permintaan-total", 60, 60),
-  ].some(Boolean);
-  if (kebanyakan) gagal("/#kontak", "Terlalu banyak kiriman. Coba lagi nanti atau hubungi kami lewat telepon.");
+  const batas = [...(ip ? [{ kunci: `permintaan|${ip}`, maks: 5 }] : []), { kunci: "permintaan-total", maks: 60 }];
+  if (melewatiBatas(batas, 60)) gagal("/#kontak", "Terlalu banyak kiriman. Coba lagi nanti atau hubungi kami lewat telepon.");
   const nama = teks(fd, "nama", 80);
   const telepon = teks(fd, "telepon", 30);
   if (!nama || !/^[\d+\s()-]{8,30}$/.test(telepon)) gagal("/#kontak", "Isi nama dan nomor telepon yang bisa dihubungi.");
@@ -141,6 +144,7 @@ export async function kirimPermintaan(fd: FormData): Promise<void> {
     hariIni(),
     hariIni(),
   );
+  for (const b of batas) catatPercobaan(b.kunci, 60);
   redirect("/?terkirim=1#kontak");
 }
 
@@ -768,8 +772,9 @@ export async function simpanPengguna(fd: FormData): Promise<void> {
   if (id) {
     jalankan("UPDATE pengguna SET nama = ?, username = ?, peran = ?, aktif = ? WHERE id = ?", nama, username, peran, aktif, id);
     if (sandi) {
-      // Ganti kata sandi atau menonaktifkan akun mencabut semua sesinya.
+      // Ganti kata sandi atau menonaktifkan akun mencabut semua sesinya dan melupakan perangkat yang dikenal.
       jalankan("UPDATE pengguna SET sandi = ? WHERE id = ?", hashSandi(sandi), id);
+      lupakanPerangkat(id);
       // Akun sendiri tetap masuk di perangkat ini, sesi di perangkat lain dicabut.
       if (id !== saya.id) jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
       else {
@@ -777,7 +782,10 @@ export async function simpanPengguna(fd: FormData): Promise<void> {
         cabutSesiLain(id, token ? hashToken(token) : null);
       }
     }
-    if (!aktif) jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
+    if (!aktif) {
+      jalankan("DELETE FROM sesi WHERE pengguna_id = ?", id);
+      lupakanPerangkat(id);
+    }
     catatLog(saya, "Ubah pengguna", `${username}, peran ${peran}, ${aktif ? "aktif" : "nonaktif"}${sandi ? ", kata sandi diganti" : ""}`);
   } else {
     jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, ?)", nama, username, hashSandi(sandi), peran);

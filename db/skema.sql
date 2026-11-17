@@ -20,6 +20,24 @@ CREATE TABLE IF NOT EXISTS sesi (
   batas TEXT
 );
 
+-- Pembatas percobaan untuk halaman masuk dan formulir website (src/lib/pembatas.ts). Satu baris per kunci:
+-- awal jendela dalam milidetik dan jumlah percobaan di jendela itu.
+CREATE TABLE IF NOT EXISTS pembatas (
+  kunci TEXT PRIMARY KEY,
+  mulai INTEGER NOT NULL,
+  jumlah INTEGER NOT NULL
+);
+
+-- Perangkat yang pernah berhasil masuk, dikenali lewat cookie berisi token acak (di sini hanya hash-nya).
+-- Percobaan masuk dari perangkat ini dihitung terpisah dari perangkat asing. Satu perangkat boleh dikenal
+-- untuk beberapa akun.
+CREATE TABLE IF NOT EXISTS perangkat (
+  token TEXT NOT NULL,
+  pengguna_id INTEGER NOT NULL REFERENCES pengguna (id) ON DELETE CASCADE,
+  kedaluwarsa TEXT NOT NULL,
+  PRIMARY KEY (token, pengguna_id)
+);
+
 CREATE TABLE IF NOT EXISTS pengaturan (
   kunci TEXT PRIMARY KEY,
   nilai TEXT NOT NULL
