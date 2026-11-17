@@ -548,8 +548,8 @@ export async function simpanAset(fd: FormData): Promise<void> {
   redirect("/sistem/aset");
 }
 
-// Foto aset. Berkas dikecilkan di browser lalu dikirim satu per satu, jadi ukurannya jauh di bawah batas
-// 1 MB untuk aksi server. Isi yang bukan JPEG ditolak.
+// Foto aset. Browser menyiapkannya sebagai JPEG HD lalu mengirimnya satu per satu, jadi tiap kiriman tetap di
+// bawah batas ukuran aksi server (bodySizeLimit di next.config.ts). Isi yang bukan JPEG ditolak.
 export async function tambahFoto(asetId: number, fd: FormData): Promise<{ galat?: string }> {
   await wajib("aset.tulis");
   const berkas = fd.get("foto");

@@ -107,7 +107,7 @@ Satu berkas SQLite di `data/tenda.db` (atau `DB_PATH`), dibuka lewat `node:sqlit
 
 Cadangan cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`) dan folder `data/foto` (atau `FOTO_DIR`).
 
-Foto dikecilkan di browser ke sisi terpanjang 1000 piksel dan disimpan sebagai JPEG, jadi satu foto biasanya 100 sampai 300 KB. Server hanya menerima isi berkas yang benar-benar JPEG, paling besar 800 KB, dan paling banyak 8 foto per aset.
+Foto disimpan dalam kualitas HD: browser menyiapkannya sebagai JPEG dengan sisi terpanjang 1920 piksel, biasanya 300 sampai 900 KB per foto. Server hanya menerima isi berkas yang benar-benar JPEG, paling besar 2,5 MB, dan paling banyak 8 foto per aset. Halaman tidak mengirim berkas HD itu utuh: komponen gambar Next membuat ukuran yang pas untuk tiap layar (AVIF atau WebP), jadi foto tetap tajam di layar besar dan ringan di HP.
 
 ## Struktur kode
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { FormAset } from "@/komponen/form-aset";
 import { Bidang, Kepala, Kosong, nilai, Pesan, type Cari } from "@/komponen/ui";
@@ -45,8 +46,7 @@ export default async function DetailAset({ params, searchParams }: { params: Pro
             {foto.map((f, i) => (
               <li key={f.id} className="overflow-hidden rounded-[10px] border border-garis bg-white">
                 <div className="relative aspect-[4/3] bg-[#ebe3d3]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={urlFoto(f.berkas)} alt={`Foto ${i + 1} ${a.nama} ${a.ukuran}`} className="size-full object-cover" loading="lazy" />
+                  <Image src={urlFoto(f.berkas)} alt={`Foto ${i + 1} ${a.nama} ${a.ukuran}`} fill sizes="(min-width: 1024px) 220px, (min-width: 640px) 30vw, 46vw" className="object-cover" />
                   {i === 0 && <span className="lencana absolute left-2 top-2 bg-lampu text-tinta">Sampul</span>}
                 </div>
                 {tulis && (

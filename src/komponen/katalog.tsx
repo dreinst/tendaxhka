@@ -35,14 +35,13 @@ function TanpaFoto() {
   );
 }
 
-// Foto bawaan (public/katalog) lewat komponen image Next. Foto unggahan dari /foto tetap <img>.
+// Semua foto, bawaan maupun unggahan, lewat komponen gambar Next. Berkas aslinya HD (sisi terpanjang 1920
+// piksel), dan komponen ini mengirim ukuran yang pas untuk tiap layar, jadi foto tetap tajam tanpa memberatkan HP.
 // Induknya harus relative dengan rasio tetap, supaya ruangnya sudah dipesan sebelum foto termuat.
 // "utama" dipakai untuk foto yang langsung terlihat saat halaman dibuka, supaya dimuat lebih dulu.
-function Foto({ berkas, alt, sizes, utama }: { berkas: string; alt: string; sizes: string; utama?: boolean }) {
-  const src = urlFoto(berkas);
-  if (src.startsWith("/katalog/")) return <Image src={src} alt={alt} fill sizes={sizes} preload={utama} className="object-cover" />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} loading={utama ? "eager" : "lazy"} className="absolute inset-0 size-full object-cover" />;
+// "tajam" dipakai untuk foto besar di rincian barang.
+function Foto({ berkas, alt, sizes, utama, tajam }: { berkas: string; alt: string; sizes: string; utama?: boolean; tajam?: boolean }) {
+  return <Image src={urlFoto(berkas)} alt={alt} fill sizes={sizes} preload={utama} quality={tajam ? 85 : 75} className="object-cover" />;
 }
 
 function Harga({ harga, satuan }: { harga: number; satuan: string }) {
@@ -293,6 +292,7 @@ export function Katalog({
                     alt={`Foto ${judul(pilih)} nomor ${fotoAktif + 1}`}
                     sizes="(min-width: 900px) 460px, 90vw"
                     utama
+                    tajam
                   />
                 ) : (
                   <TanpaFoto />
