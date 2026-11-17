@@ -207,6 +207,9 @@ async function bukaPostgres(): Promise<Mesin> {
   // Koneksi yang menganggur bisa diputus server (misalnya Neon yang tertidur). Tanpa penangan ini galatnya
   // menghentikan proses. Pool membuka koneksi baru saat dibutuhkan lagi.
   pool.on("error", (e) => console.warn(`Koneksi PostgreSQL yang menganggur terputus: ${e.message}`));
+  // Di Vercel, fungsi bisa ditidurkan di antara permintaan dan koneksi yang menganggur ikut mati diam-diam.
+  // attachDatabasePool menutup koneksi menganggur sebelum fungsi ditidurkan, sesuai panduan Vercel untuk pg.
+  if (process.env.VERCEL) (await import("@vercel/functions")).attachDatabasePool(pool);
   try {
     await pasangSkemaPg(pool);
   } catch (e) {

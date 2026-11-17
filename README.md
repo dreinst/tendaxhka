@@ -2,7 +2,7 @@
 
 Website dan sistem internal untuk usaha rental tenda, dibangun untuk kerja sama Tenda Indonesia (aset dan operasional) dengan HKA Management (pengembangan bisnis dan sistem). Alurnya mengikuti proposal kerja sama: inquiry, quotation, booking, pelaksanaan, invoice, lalu tutup periode dan bagi hasil.
 
-Rancangannya mengacu ke Produksia dan HKA Console, tetapi sengaja dibuat jauh lebih kecil: tanpa jurnal akuntansi, tanpa ORM, dan basis datanya SQLite. Datanya bisa berupa satu berkas di server sendiri, atau Turso kalau hostingnya tidak punya disk tetap (misalnya Vercel).
+Rancangannya mengacu ke Produksia dan HKA Console, tetapi sengaja dibuat jauh lebih kecil: tanpa jurnal akuntansi dan tanpa ORM. Datanya bisa berupa satu berkas SQLite di server sendiri, atau PostgreSQL kalau hostingnya tidak punya disk tetap (misalnya Vercel).
 
 ## Menjalankan
 
@@ -89,12 +89,14 @@ Rugi ikut dibagi dengan porsi yang sama. Kalau perjanjiannya berbeda, ubah `hitu
 
 ## Basis data
 
-Skemanya SQLite (`db/skema.sql`) dan dibuka lewat klien libSQL, jadi datanya bisa berada di dua tempat tanpa mengubah kode:
+Ada dua mesin basis data di belakang satu antarmuka (`src/lib/db.ts`), dan kode aplikasi tidak perlu tahu yang mana:
 
-- Berkas lokal di `data/tenda.db` (atau `DB_PATH`). Untuk komputer sendiri, VPS, atau container dengan volume.
-- Turso, kalau `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` diisi. Untuk hosting tanpa disk tetap seperti Vercel.
+- SQLite, satu berkas di `data/tenda.db` (atau `DB_PATH`), lewat `node:sqlite` bawaan Node. Untuk komputer sendiri, uji, mode demo, dan VPS atau container dengan volume.
+- PostgreSQL, kalau `DATABASE_URL` diisi. Untuk hosting tanpa disk tetap seperti Vercel, misalnya basis data Neon yang dibuat dari dasbor Vercel.
 
-Skema dipasang sendiri saat basis data dibuka, jadi basis data kosong langsung siap dipakai. Berkas lokal dipasangi skema setiap kali dibuka. Turso hanya dipasangi lagi kalau `VERSI_SKEMA` di `src/lib/db.ts` lebih besar dari yang tersimpan, jadi naikkan angka itu setiap kali `db/skema.sql` berubah.
+Skema dipasang sendiri saat basis data dibuka, jadi basis data kosong langsung siap dipakai. Skema SQLite ada di `db/skema.sql` dan dipasang setiap kali berkasnya dibuka. Skema PostgreSQL ada di `db/skema-pg.sql` dan hanya dipasang lagi kalau `VERSI_SKEMA` di `src/lib/db.ts` lebih besar dari yang tersimpan. Jadi setiap perubahan skema ditulis di kedua berkas, lalu angka itu dinaikkan.
+
+SQL di aplikasi ditulis dengan bagian yang sah dan sama artinya di kedua mesin. `npm test` menjalankan uji di SQLite. `npm run test:pg` menjalankan uji yang sama terhadap PostgreSQL di `UJI_DATABASE_URL`, tiap berkas uji di skemanya sendiri. Jalankan keduanya sesudah mengubah kueri.
 
 | Tabel | Isi |
 |---|---|
@@ -110,50 +112,53 @@ Skema dipasang sendiri saat basis data dibuka, jadi basis data kosong langsung s
 | `periode` | Angka bagi hasil yang sudah ditutup |
 | `log_aktivitas` | Jejak audit. Pemicu SQLite menolak UPDATE dan DELETE, jadi `npm run seed -- --timpa` tidak mengosongkannya |
 
-Cadangan berkas lokal cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`) dan folder `data/foto` (atau `FOTO_DIR`). Untuk Turso dan R2, ambil salinan berkala lewat alat masing-masing dan simpan di tempat yang dipegang kedua partner.
+Cadangan berkas lokal cukup dengan menyalin berkas basis datanya (`sqlite3 data/tenda.db ".backup cadangan.db"`) dan folder `data/foto` (atau `FOTO_DIR`). Untuk PostgreSQL dan penyimpanan foto di awan, ambil salinan berkala lewat alat masing-masing (misalnya `pg_dump`) dan simpan di tempat yang dipegang kedua partner.
 
 Foto disimpan dalam kualitas HD: browser menyiapkannya sebagai JPEG dengan sisi terpanjang 1920 piksel, biasanya 300 sampai 900 KB per foto. Server hanya menerima isi berkas yang benar-benar JPEG, paling besar 2,5 MB, dan paling banyak 8 foto per aset. Halaman tidak mengirim berkas HD itu utuh: komponen gambar Next membuat ukuran yang pas untuk tiap layar (AVIF atau WebP), jadi foto tetap tajam di layar besar dan ringan di HP.
 
-Berkas fotonya disimpan di Cloudflare R2 kalau empat variabel `R2_*` diisi, dan di folder `data/foto` kalau tidak. Di kedua cara, foto dilayani lewat `/foto/[nama]` dan disimpan lama di cache browser dan CDN. Jadi bucket R2 tidak perlu dibuka untuk umum, dan tempat simpan bisa diganti tanpa mengubah alamat foto.
+Berkas fotonya disimpan di salah satu dari tiga tempat: Vercel Blob (kalau proyek Vercel disambungkan ke satu Blob store privat), Cloudflare R2 (kalau empat variabel `R2_*` diisi), atau folder `data/foto`. Di ketiganya foto dilayani lewat `/foto/[nama]` dan disimpan lama di cache browser dan CDN. Jadi penyimpanannya tidak perlu dibuka untuk umum, dan tempat simpan bisa diganti tanpa mengubah alamat foto.
 
 ## Struktur kode
 
 - `db/skema.sql`: skema.
 - `src/lib/hitung.ts`: hitungan murni (ketersediaan, total, utilisasi, bagi hasil, hak akses).
-- `src/lib/db.ts`: satu-satunya berkas yang tahu basis datanya ada di mana (berkas lokal atau Turso).
+- `src/lib/db.ts`: satu-satunya berkas yang tahu basis datanya ada di mana (berkas SQLite atau PostgreSQL).
 - `src/lib/data.ts`: kueri baca. `src/lib/aksi.ts`: semua aksi server.
-- `src/lib/foto.ts`, `src/lib/s3.ts`: penyimpanan foto (folder lokal atau R2) dan tanda tangan permintaannya.
+- `src/lib/foto.ts`, `src/lib/s3.ts`: penyimpanan foto (folder lokal, Vercel Blob, atau R2) dan tanda tangan permintaan ke R2.
 - `src/lib/auth.ts`, `src/lib/sandi.ts`: sesi dan kata sandi (scrypt, token sesi disimpan sebagai hash). Sesi habis setelah 12 jam tidak dipakai dan paling lama 14 hari sejak masuk.
 - `src/lib/pembatas.ts`: pembatas percobaan masuk dan formulir website.
 - `src/app/page.tsx`: website. `src/app/sistem/**`: halaman sistem.
 - `tests/`: uji hitungan dan uji kueri dengan basis data di memori.
 
-## Memasang di Vercel dengan Turso dan R2
+## Memasang di Vercel
 
-1. Basis data. Buat basis data di Turso, langsung di turso.tech atau lewat Vercel Marketplace (yang mengisi dua variabel Turso di bawah dengan sendirinya). Pilih lokasi Tokyo (`aws-ap-northeast-1`), yang terdekat dari Indonesia di antara lokasi yang tersedia. Lalu buat token aksesnya.
-2. Foto. Di Cloudflare, buat bucket R2 dan biarkan privat. Di halaman R2, buka pengelolaan API Tokens dan buat satu token dengan izin Object Read & Write yang dibatasi ke bucket itu. Catat Access Key ID dan Secret Access Key (Secret hanya ditampilkan sekali), juga alamat API S3 akunnya.
-3. Isi variabel lingkungan di proyek Vercel:
+Semua yang dibutuhkan bisa dibuat dari dasbor Vercel, tanpa mendaftar di layanan lain.
+
+1. Basis data. Di proyek Vercel, buka tab Storage, buat basis data Neon (Postgres), dan sambungkan ke proyek. Pilih wilayah Singapura. Vercel mengisi `DATABASE_URL` dengan sendirinya. Paket gratis Neon memberi 1 GB per proyek dan menidurkan basis data sesudah 5 menit tanpa kunjungan, jadi permintaan pertama sesudah lama sepi sedikit lebih lambat.
+2. Foto. Di tab Storage yang sama, buat Blob store dengan akses privat dan sambungkan ke proyek. Vercel mengisi tokennya dengan sendirinya. Paket Hobby memberi 1 GB, cukup untuk lebih dari seribu foto HD.
+3. Isi dua variabel lingkungan sendiri:
 
    ```
-   TURSO_DATABASE_URL=   # alamat libsql://... dari Turso
-   TURSO_AUTH_TOKEN=
-   R2_ENDPOINT=          # https://<id akun>.r2.cloudflarestorage.com
-   R2_BUCKET=
-   R2_ACCESS_KEY_ID=
-   R2_SECRET_ACCESS_KEY=
-   SETUP_TOKEN=          # kode untuk membuat akun admin pertama, minimal 16 karakter
-   SITUS_URL=            # alamat situs, untuk metadata dan sitemap
+   SETUP_TOKEN=   # kode untuk membuat akun admin pertama, minimal 16 karakter
+   SITUS_URL=     # alamat situs, untuk metadata dan sitemap
    ```
 
-   `MODE_DEMO` jangan diisi. Aplikasi menolak jalan kalau `MODE_DEMO` dan `TURSO_DATABASE_URL` diisi bersamaan, supaya data contoh tidak masuk ke basis data asli.
-4. Wilayah server. `vercel.json` menaruh fungsi di Tokyo (`hnd1`) supaya server dan basis data berdekatan. Setiap kueri adalah satu perjalanan jaringan, dan satu transaksi di Turso harus selesai dalam 5 detik. Kalau basis datanya ditaruh di lokasi lain, ganti wilayah di `vercel.json` ke yang terdekat dengannya.
+   `MODE_DEMO` jangan diisi. Aplikasi menolak jalan kalau `MODE_DEMO` dan `DATABASE_URL` diisi bersamaan, supaya data contoh tidak masuk ke basis data asli.
+4. Wilayah server. `vercel.json` menaruh fungsi di Singapura (`sin1`) supaya server dan basis data berdekatan. Setiap kueri adalah satu perjalanan jaringan. Kalau basis datanya ditaruh di wilayah lain, ganti wilayah di `vercel.json` ke yang terdekat dengannya.
 5. Deploy, buka `/masuk`, lalu buat akun admin pertama dengan kode `SETUP_TOKEN`.
+
+Pilihan lain:
+
+- PostgreSQL mana pun bisa dipakai, cukup isi `DATABASE_URL`. Butuh PostgreSQL 14 atau lebih baru.
+- Foto bisa ditaruh di Cloudflare R2 (gratis sampai 10 GB): buat bucket privat dan satu API token dengan izin Object Read & Write untuk bucket itu, lalu isi `R2_ENDPOINT` (bentuknya `https://<id akun>.r2.cloudflarestorage.com`), `R2_BUCKET`, `R2_ACCESS_KEY_ID`, dan `R2_SECRET_ACCESS_KEY`.
 
 Yang perlu diketahui:
 
 - Paket gratis Vercel (Hobby) melarang pemakaian komersial. Untuk usaha yang sungguh berjalan, aturannya menuntut paket Pro.
-- Foto yang sudah ada di folder lokal tidak pindah sendiri ke R2. Unggah ulang lewat halaman aset, atau salin berkasnya ke bucket dengan awalan `foto/`.
-- Sesudah deploy pertama, jalankan satu putaran penuh sebelum memasukkan data asli: buat admin, tambah aset, unggah lalu hapus satu foto, dan buat penawaran sampai booking. Uji otomatis di repo ini memakai berkas lokal dan server S3 tiruan, jadi putaran itulah yang memastikan sambungan ke Turso dan R2 sungguhan.
+- Di paket Hobby, Blob yang melewati batas gratisnya tidak bisa diakses sampai 30 hari. Pantau pemakaiannya di dasbor.
+- Foto yang sudah ada di folder lokal tidak pindah sendiri ke Blob atau R2. Unggah ulang lewat halaman aset.
+- Data dari berkas SQLite yang sudah terisi juga tidak pindah sendiri ke PostgreSQL. Belum ada alat pemindahnya.
+- Sesudah deploy pertama, jalankan satu putaran penuh sebelum memasukkan data asli: buat admin, tambah aset, unggah lalu hapus satu foto, dan buat penawaran sampai booking. Uji otomatis di repo ini memakai PostgreSQL lokal dan server S3 tiruan, jadi putaran itulah yang memastikan sambungan ke Neon dan Blob sungguhan.
 
 ## Mode demo (Vercel)
 
@@ -166,11 +171,11 @@ SANDI_DEMO=kata-sandi-minimal-8-karakter
 
 Dengan `MODE_DEMO=1`, basis data dan foto ditaruh di `/tmp/tenda-demo`, lalu diisi data contoh (`src/lib/contoh.ts`) saat masih kosong. Semua akun contoh (`admin`, `sales`, `gudang`, `kru`, `partner-tenda`, `partner-hka`) memakai `SANDI_DEMO`. Setiap halaman menampilkan pita "Versi demo" dan seluruh situs ditandai `noindex`.
 
-Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Vercel bisa melayani halaman yang berbeda dari server yang berbeda, dan masing-masing punya basis data sendiri. Karena itu sesi login di mode demo tidak disimpan di basis data, melainkan di cookie yang ditandatangani HMAC dengan kunci turunan `SANDI_DEMO`, sehingga login tetap berlaku di semua halaman. Data yang ditambahkan di satu halaman (misalnya pesanan baru) bisa saja tidak terlihat di halaman lain. Mode ini hanya untuk menunjukkan tampilan, tidak untuk data asli, dan tidak bisa dipakai bersama `TURSO_DATABASE_URL`. Foto di mode demo juga tidak pernah dikirim ke R2.
+Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Vercel bisa melayani halaman yang berbeda dari server yang berbeda, dan masing-masing punya basis data sendiri. Karena itu sesi login di mode demo tidak disimpan di basis data, melainkan di cookie yang ditandatangani HMAC dengan kunci turunan `SANDI_DEMO`, sehingga login tetap berlaku di semua halaman. Data yang ditambahkan di satu halaman (misalnya pesanan baru) bisa saja tidak terlihat di halaman lain. Mode ini hanya untuk menunjukkan tampilan, tidak untuk data asli, dan tidak bisa dipakai bersama `DATABASE_URL`. Foto di mode demo juga tidak pernah dikirim ke Blob atau R2.
 
 ## Yang perlu diketahui sebelum dipakai sungguhan
 
-- Berkas SQLite lokal butuh disk yang menetap, jadi hanya cocok di VPS atau container dengan volume. Di hosting serverless yang disknya hilang tiap deploy, pakai Turso dan R2 (lihat bagian Memasang di Vercel). Kalau nanti pindah ke PostgreSQL, yang diganti adalah `src/lib/db.ts` dan beberapa sintaks SQL.
+- Berkas SQLite lokal butuh disk yang menetap, jadi hanya cocok di VPS atau container dengan volume. Di hosting serverless yang disknya hilang tiap deploy, pakai PostgreSQL dan Blob (lihat bagian Memasang di Vercel).
 - Pembatas percobaan masuk dan pembatas formulir website disimpan di basis data, jadi berlaku di semua server dan tidak hilang saat server dimulai ulang. Yang dihitung hanya sandi yang salah, dan percobaan yang sudah ditolak tidak menambah hitungan. Batas per 15 menit: 5 kali per alamat untuk satu username, 20 kali per alamat untuk semua username, dan 10 kali per username dari perangkat yang belum pernah berhasil masuk.
 - Perangkat yang pernah berhasil masuk dikenali lewat cookie selama 90 hari dan punya jatah percobaan sendiri. Jadi orang luar yang menghabiskan jatah sebuah username tidak ikut mengunci pemilik akunnya. Yang masih bisa tertahan sampai 15 menit hanya login akun itu dari perangkat baru.
 - Alamat pengunjung dibaca dari header yang disebut `HEADER_IP` di `.env`. Isi dengan header yang ditulis proxy sendiri (misalnya `x-real-ip` dari Nginx), karena `x-forwarded-for` dari pengunjung bisa dipalsukan. Di Vercel tidak perlu diisi, karena `x-real-ip` ditulis ulang oleh Vercel. Tanpa alamat, batas per alamat tidak dipakai dan yang berlaku hanya batas per username dan per perangkat.

@@ -5,11 +5,14 @@ import { jalurDb, MODE_DEMO } from "./db.ts";
 import { namaFotoSah } from "./hitung.ts";
 import { HASH_KOSONG, hashIsi, tandaTanganS3 } from "./s3.ts";
 
-// Foto katalog disimpan di salah satu dari dua tempat:
-//  - Cloudflare R2, kalau keempat variabel R2_* diisi. Dipakai di hosting tanpa disk tetap seperti Vercel.
+// Foto katalog disimpan di salah satu dari tiga tempat:
+//  - Vercel Blob, kalau proyek Vercel-nya disambungkan ke satu Blob store privat (Vercel mengisi
+//    BLOB_READ_WRITE_TOKEN atau BLOB_STORE_ID sendiri). Paling sederhana di Vercel karena tanpa akun lain.
+//  - Cloudflare R2, kalau keempat variabel R2_* diisi. Kuota gratisnya lebih besar. Kalau dua-duanya terisi,
+//    R2 yang dipakai.
 //  - folder di disk: data/foto di samping berkas basis data, atau FOTO_DIR. Folder ini perlu ikut dicadangkan.
 // Basis data hanya menyimpan nama berkasnya, dan foto selalu dilayani lewat /foto/<nama>. Jadi tempat simpan
-// bisa diganti tanpa mengubah alamat foto, dan bucket R2 tidak perlu dibuka untuk umum.
+// bisa diganti tanpa mengubah alamat foto, dan penyimpanannya tidak perlu dibuka untuk umum.
 
 const VARIABEL_R2 = ["R2_ENDPOINT", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"] as const;
 
@@ -47,6 +50,13 @@ function mintaR2(t: TempatR2, method: "GET" | "PUT" | "DELETE", nama: string, is
   return fetch(url, { method, headers: kepala, body: isi ? Buffer.from(isi) : undefined, signal: AbortSignal.timeout(15_000) });
 }
 
+// Mode demo juga tidak pernah menyentuh Blob.
+function pakaiBlob(): boolean {
+  return !MODE_DEMO && !!(process.env.BLOB_READ_WRITE_TOKEN?.trim() || process.env.BLOB_STORE_ID?.trim());
+}
+
+const jalurBlob = (nama: string) => `foto/${nama}`;
+
 export function folderFoto(): string {
   if (process.env.FOTO_DIR) return process.env.FOTO_DIR;
   const db = jalurDb();
@@ -60,6 +70,11 @@ export async function simpanBerkasFoto(isi: Uint8Array): Promise<string> {
   if (t) {
     const jawab = await mintaR2(t, "PUT", nama, isi);
     if (!jawab.ok) throw new Error(`R2 menolak unggahan foto (status ${jawab.status}).`);
+    return nama;
+  }
+  if (pakaiBlob()) {
+    const { put } = await import("@vercel/blob");
+    await put(jalurBlob(nama), Buffer.from(isi), { access: "private", contentType: "image/jpeg", addRandomSuffix: false });
     return nama;
   }
   await mkdir(folderFoto(), { recursive: true });
@@ -76,6 +91,12 @@ export async function bacaBerkasFoto(nama: string): Promise<Uint8Array | null> {
     if (!jawab.ok) throw new Error(`R2 gagal memberikan foto (status ${jawab.status}).`);
     return new Uint8Array(await jawab.arrayBuffer());
   }
+  if (pakaiBlob()) {
+    const { get } = await import("@vercel/blob");
+    const hasil = await get(jalurBlob(nama), { access: "private" });
+    if (!hasil || hasil.statusCode !== 200 || !hasil.stream) return null;
+    return new Uint8Array(await new Response(hasil.stream).arrayBuffer());
+  }
   return readFile(join(folderFoto(), nama)).catch(() => null);
 }
 
@@ -88,6 +109,11 @@ export async function hapusBerkasFoto(nama: string): Promise<void> {
     if (t) {
       const jawab = await mintaR2(t, "DELETE", nama);
       if (!jawab.ok && jawab.status !== 404) throw new Error(`status ${jawab.status}`);
+      return;
+    }
+    if (pakaiBlob()) {
+      const { del } = await import("@vercel/blob");
+      await del(jalurBlob(nama));
       return;
     }
     await rm(join(folderFoto(), nama), { force: true });
