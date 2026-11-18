@@ -18,7 +18,14 @@ export const MODE_DEMO = process.env.MODE_DEMO === "1";
 //  - selain itu: satu berkas SQLite di DB_PATH (bawaannya data/tenda.db, atau /tmp di mode demo) lewat
 //    node:sqlite bawaan Node. Dipakai di lokal, uji, mode demo, dan server sendiri yang punya disk.
 // SQL di aplikasi ditulis dengan bagian yang sah dan sama artinya di kedua mesin, dengan ? sebagai parameter.
-const ALAMAT_PG = process.env.DATABASE_URL?.trim() || "";
+// Neon memberi alamat ber-sslmode=require. Di paket pg yang sekarang itu sudah berarti sertifikat diperiksa
+// penuh (verify-full), tetapi versi mayor berikutnya akan melonggarkannya, dan pg mencetak peringatan soal itu
+// tiap kali proses mulai. Ditulis terang di sini supaya pemeriksaannya tetap penuh dan log tetap bersih.
+export function tegaskanSsl(alamat: string): string {
+  return alamat.replace(/([?&]sslmode=)(?:prefer|require|verify-ca)(?=&|$)/, "$1verify-full");
+}
+
+const ALAMAT_PG = tegaskanSsl(process.env.DATABASE_URL?.trim() || "");
 
 // Khusus uji: nama skema PostgreSQL yang dibuat kalau belum ada dan dipasang sebagai search_path di setiap
 // koneksi, supaya tiap berkas uji punya ruang sendiri di satu basis data.

@@ -10,7 +10,7 @@ import { PG, siapkanBasisUji } from "./basis-uji.ts";
 const folder = mkdtempSync(join(tmpdir(), "tenda-uji-db-"));
 const buang = siapkanBasisUji(join(folder, "tenda.db"));
 
-const { buka, jalankan, satu, semua, sisip, transaksi, tutup } = await import("../src/lib/db.ts");
+const { buka, jalankan, satu, semua, sisip, tegaskanSsl, transaksi, tutup } = await import("../src/lib/db.ts");
 
 after(async () => {
   await tutup();
@@ -120,4 +120,13 @@ test("menghapus induk ikut menghapus anaknya (foreign key aktif)", async () => {
   await jalankan("DELETE FROM aset WHERE id = ?", aset);
   assert.deepEqual(await semua("SELECT 1 FROM aset_foto WHERE berkas = 'uji-fk.jpg'"), []);
   await assert.rejects(jalankan("INSERT INTO aset_foto (aset_id, berkas) VALUES (999999, 'yatim.jpg')"), /FOREIGN KEY|constraint/i);
+});
+
+test("sslmode yang longgar ditulis terang sebagai verify-full, selebihnya dibiarkan", () => {
+  assert.equal(tegaskanSsl("postgres://u:s@h/db?sslmode=require"), "postgres://u:s@h/db?sslmode=verify-full");
+  assert.equal(tegaskanSsl("postgres://u:s@h/db?channel_binding=require&sslmode=require"), "postgres://u:s@h/db?channel_binding=require&sslmode=verify-full");
+  assert.equal(tegaskanSsl("postgres://u:s@h/db?sslmode=prefer&x=1"), "postgres://u:s@h/db?sslmode=verify-full&x=1");
+  assert.equal(tegaskanSsl("postgres://u:s@h/db?sslmode=disable"), "postgres://u:s@h/db?sslmode=disable");
+  assert.equal(tegaskanSsl("postgres://u:s@127.0.0.1:5439/db"), "postgres://u:s@127.0.0.1:5439/db");
+  assert.equal(tegaskanSsl(""), "");
 });
