@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { jalurDb, MODE_DEMO } from "./db.ts";
+import { jalurDb } from "./db.ts";
 import { namaFotoSah } from "./hitung.ts";
 import { HASH_KOSONG, hashIsi, tandaTanganS3 } from "./s3.ts";
 
@@ -12,16 +12,15 @@ import { HASH_KOSONG, hashIsi, tandaTanganS3 } from "./s3.ts";
 //    R2 yang dipakai.
 //  - folder di disk: data/foto di samping berkas basis data, atau FOTO_DIR. Folder ini perlu ikut dicadangkan.
 // Basis data hanya menyimpan nama berkasnya, dan foto selalu dilayani lewat /foto/<nama>. Jadi tempat simpan
-// bisa diganti tanpa mengubah alamat foto, dan penyimpanannya tidak perlu dibuka untuk umum.
+// bisa diganti tanpa mengubah alamat foto, dan penyimpanannya tidak perlu dibuka untuk umum. Mode demo
+// memakai tempat yang sama dengan mode biasa: yang menentukan hanya variabel yang diisi.
 
 const VARIABEL_R2 = ["R2_ENDPOINT", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"] as const;
 
 type TempatR2 = { pangkal: string; kunci: string; rahasia: string };
 
 // R2_ENDPOINT adalah alamat API S3 akun Cloudflare, bentuknya https://<id akun>.r2.cloudflarestorage.com.
-// Mode demo tidak pernah menyentuh R2, supaya foto contoh tidak masuk ke bucket asli.
 function r2(): TempatR2 | null {
-  if (MODE_DEMO) return null;
   const terisi = VARIABEL_R2.filter((v) => process.env[v]?.trim());
   if (terisi.length === 0) return null;
   if (terisi.length < VARIABEL_R2.length) {
@@ -50,9 +49,8 @@ function mintaR2(t: TempatR2, method: "GET" | "PUT" | "DELETE", nama: string, is
   return fetch(url, { method, headers: kepala, body: isi ? Buffer.from(isi) : undefined, signal: AbortSignal.timeout(15_000) });
 }
 
-// Mode demo juga tidak pernah menyentuh Blob.
 function pakaiBlob(): boolean {
-  return !MODE_DEMO && !!(process.env.BLOB_READ_WRITE_TOKEN?.trim() || process.env.BLOB_STORE_ID?.trim());
+  return !!(process.env.BLOB_READ_WRITE_TOKEN?.trim() || process.env.BLOB_STORE_ID?.trim());
 }
 
 const jalurBlob = (nama: string) => `foto/${nama}`;

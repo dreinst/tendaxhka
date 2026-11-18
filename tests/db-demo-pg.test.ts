@@ -1,19 +1,35 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
+import { PG, siapkanBasisUji } from "./basis-uji.ts";
 
-// Tidak butuh server PostgreSQL: penolakan harus terjadi sebelum ada sambungan. Alamat di bawah menunjuk port
-// yang tidak melayani apa pun, jadi kalau kode mencoba tersambung, galatnya berbeda dan uji ini gagal.
+// Mode demo di atas PostgreSQL: data contoh menetap di basis data itu dan hanya diisi sekali. Uji ini butuh
+// PostgreSQL, jadi dilewati di npm test dan jalan di npm run test:pg.
 process.env.MODE_DEMO = "1";
 process.env.SANDI_DEMO = "sandi-demo-uji";
-process.env.DATABASE_URL = "postgres://uji:uji@127.0.0.1:9/tidak_dipakai";
-delete process.env.SKEMA_PG;
+const buangSkema = siapkanBasisUji(":memory:");
 
-const { buka } = await import("../src/lib/db.ts");
+const { buka, satu, tutup } = await import("../src/lib/db.ts");
 
-const klienTersimpan = () => (globalThis as { __dbTenda?: { klien?: unknown } }).__dbTenda?.klien;
+after(async () => {
+  await tutup();
+  await buangSkema();
+});
 
-test("mode demo ditolak kalau DATABASE_URL terisi, sebelum ada sambungan ke basis data", async () => {
-  await assert.rejects(buka(), /MODE_DEMO=1 tidak boleh dipakai bersama DATABASE_URL/);
-  await assert.rejects(buka(), /MODE_DEMO=1 tidak boleh dipakai bersama DATABASE_URL/);
-  assert.equal(klienTersimpan(), undefined);
+const jumlah = async (tabel: string) => (await satu<{ n: number }>(`SELECT COUNT(*) AS n FROM ${tabel}`))!.n;
+
+test("mode demo mengisi data contoh ke PostgreSQL yang masih kosong", { skip: !PG }, async () => {
+  assert.equal((await buka()).jenis, "postgres");
+  assert.equal(await jumlah("pengguna"), 6);
+  assert.ok((await jumlah("aset")) >= 10);
+  assert.ok((await jumlah("pesanan")) > 0);
+});
+
+test("server lain yang bangun sesudahnya tidak mengisi ulang data contoh", { skip: !PG }, async () => {
+  const pengguna = await jumlah("pengguna");
+  const pesanan = await jumlah("pesanan");
+  // Menutup lalu membuka lagi sama dengan server baru yang tersambung ke basis data yang sudah terisi.
+  await tutup();
+  await buka();
+  assert.equal(await jumlah("pengguna"), pengguna);
+  assert.equal(await jumlah("pesanan"), pesanan);
 });

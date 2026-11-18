@@ -3,7 +3,7 @@ import { after, test } from "node:test";
 
 process.env.MODE_DEMO = "1";
 process.env.DB_PATH = ":memory:";
-// Mode demo selalu memakai SQLite. Alamat PostgreSQL dari lingkungan pemanggil tidak boleh ikut terbawa.
+// Uji ini untuk mode demo di SQLite. Alamat PostgreSQL dari lingkungan pemanggil tidak boleh ikut terbawa.
 delete process.env.DATABASE_URL;
 delete process.env.SANDI_DEMO;
 

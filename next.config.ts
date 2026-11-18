@@ -43,7 +43,7 @@ const config: NextConfig = {
     // atas MAKS_UKURAN_FOTO (src/lib/hitung.ts) dan di bawah batas 4,5 MB milik Vercel.
     serverActions: { bodySizeLimit: "3mb" },
   },
-  outputFileTracingIncludes: { "/*": ["./db/skema.sql"], "/**": ["./db/skema.sql"] },
+  outputFileTracingIncludes: { "/*": ["./db/skema.sql", "./db/skema-pg.sql"], "/**": ["./db/skema.sql", "./db/skema-pg.sql"] },
   async headers() {
     return [
       {

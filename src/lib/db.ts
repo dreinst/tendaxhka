@@ -5,9 +5,12 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Pool, PoolClient } from "pg";
 import { isiDataContoh } from "./contoh.ts";
 
-// Mode demo untuk pratinjau tanpa basis data sungguhan: berkas SQLite dan foto ditaruh di /tmp, satu-satunya
-// folder yang boleh ditulis di hosting seperti Vercel, lalu diisi data contoh saat masih kosong. Isinya hilang
-// setiap kali server dimulai ulang, jadi mode ini tidak untuk data asli.
+// Mode demo: situs diberi label "Versi demo", ditutup dari mesin pencari, dan basis datanya diisi data contoh
+// saat masih kosong. Tempat datanya mengikuti pengaturan yang lain:
+//  - tanpa DATABASE_URL, berkas SQLite ditaruh di /tmp (satu-satunya folder yang boleh ditulis di hosting
+//    seperti Vercel) dan isinya hilang setiap kali server dimulai ulang;
+//  - dengan DATABASE_URL, data contoh menetap di PostgreSQL itu. Dipakai untuk demo yang bisa dicoba banyak
+//    orang. Jangan arahkan ke basis data yang nanti dipakai untuk data asli.
 export const MODE_DEMO = process.env.MODE_DEMO === "1";
 
 // Basis data dijalankan salah satu dari dua mesin, dan kode di luar berkas ini tidak perlu tahu yang mana:
@@ -94,9 +97,6 @@ export async function tutup(): Promise<void> {
 }
 
 async function siapkan(): Promise<Mesin> {
-  if (ALAMAT_PG && MODE_DEMO) {
-    throw new Error("MODE_DEMO=1 tidak boleh dipakai bersama DATABASE_URL, karena data contoh bisa masuk ke basis data asli.");
-  }
   const mesin = ALAMAT_PG ? await bukaPostgres() : await bukaSqlite();
   try {
     if (MODE_DEMO) await isiContohBilaKosong(mesin);
@@ -108,12 +108,17 @@ async function siapkan(): Promise<Mesin> {
 }
 
 // Data contoh diisi di dalam satu transaksi: kalau gagal di tengah, tidak ada yang tersimpan dan pemanggilan
-// berikutnya mengulang dari basis data kosong.
+// berikutnya mengulang dari basis data kosong. Kekosongannya dicek lagi di dalam transaksi, karena di
+// PostgreSQL dua server bisa bangun bersamaan dan yang kedua baru mendapat giliran sesudah yang pertama selesai
+// mengisi.
 async function isiContohBilaKosong(mesin: Mesin): Promise<void> {
   if ((await mesin.jalan("SELECT 1 FROM pengguna LIMIT 1", [])).length) return;
   const sandi = process.env.SANDI_DEMO ?? "";
   if (sandi.length < 8) throw new Error("MODE_DEMO=1 butuh SANDI_DEMO minimal 8 karakter untuk akun contoh.");
-  await mesin.transaksi(() => isiDataContoh(sandi));
+  await mesin.transaksi(async () => {
+    if (await satu("SELECT 1 FROM pengguna LIMIT 1")) return;
+    await isiDataContoh(sandi);
+  });
 }
 
 // SQLite

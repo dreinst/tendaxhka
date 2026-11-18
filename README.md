@@ -143,7 +143,7 @@ Semua yang dibutuhkan bisa dibuat dari dasbor Vercel, tanpa mendaftar di layanan
    SITUS_URL=     # alamat situs, untuk metadata dan sitemap
    ```
 
-   `MODE_DEMO` jangan diisi. Aplikasi menolak jalan kalau `MODE_DEMO` dan `DATABASE_URL` diisi bersamaan, supaya data contoh tidak masuk ke basis data asli.
+   Untuk data asli, `MODE_DEMO` jangan diisi. Kalau `MODE_DEMO=1` dipakai bersama `DATABASE_URL`, basis data yang masih kosong langsung diisi data contoh (lihat bagian Mode demo).
 4. Wilayah server. `vercel.json` menaruh fungsi di Singapura (`sin1`) supaya server dan basis data berdekatan. Setiap kueri adalah satu perjalanan jaringan. Kalau basis datanya ditaruh di wilayah lain, ganti wilayah di `vercel.json` ke yang terdekat dengannya.
 5. Deploy, buka `/masuk`, lalu buat akun admin pertama dengan kode `SETUP_TOKEN`.
 
@@ -171,7 +171,9 @@ SANDI_DEMO=kata-sandi-minimal-8-karakter
 
 Dengan `MODE_DEMO=1`, basis data dan foto ditaruh di `/tmp/tenda-demo`, lalu diisi data contoh (`src/lib/contoh.ts`) saat masih kosong. Semua akun contoh (`admin`, `sales`, `gudang`, `kru`, `partner-tenda`, `partner-hka`) memakai `SANDI_DEMO`. Setiap halaman menampilkan pita "Versi demo" dan seluruh situs ditandai `noindex`.
 
-Isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Vercel bisa melayani halaman yang berbeda dari server yang berbeda, dan masing-masing punya basis data sendiri. Karena itu sesi login di mode demo tidak disimpan di basis data, melainkan di cookie yang ditandatangani HMAC dengan kunci turunan `SANDI_DEMO`, sehingga login tetap berlaku di semua halaman. Data yang ditambahkan di satu halaman (misalnya pesanan baru) bisa saja tidak terlihat di halaman lain. Mode ini hanya untuk menunjukkan tampilan, tidak untuk data asli, dan tidak bisa dipakai bersama `DATABASE_URL`. Foto di mode demo juga tidak pernah dikirim ke Blob atau R2.
+Mode demo juga bisa memakai PostgreSQL: isi `DATABASE_URL` bersama `MODE_DEMO=1`, dan data contohnya menetap di basis data itu sehingga semua pengunjung melihat isi yang sama. Foto yang diunggah ikut tempat simpan yang diatur (Blob atau R2). Ini cocok untuk demo yang dicoba banyak orang. Jangan memakai basis data yang sama untuk data asli nanti, buat yang baru.
+
+Tanpa `DATABASE_URL`, isinya hilang setiap kali server dimulai ulang, setelah deploy baru, atau saat Vercel memakai server lain. Vercel bisa melayani halaman yang berbeda dari server yang berbeda, dan masing-masing punya basis data sendiri. Karena itu sesi login di mode demo tidak disimpan di basis data, melainkan di cookie yang ditandatangani HMAC dengan kunci turunan `SANDI_DEMO`, sehingga login tetap berlaku di semua halaman. Data yang ditambahkan di satu halaman (misalnya pesanan baru) bisa saja tidak terlihat di halaman lain. Mode ini hanya untuk menunjukkan tampilan dan mencoba alur, tidak untuk data asli.
 
 ## Yang perlu diketahui sebelum dipakai sungguhan
 
