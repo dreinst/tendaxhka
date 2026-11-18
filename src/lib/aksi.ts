@@ -36,6 +36,14 @@ function gagal(jalur: string, pesan: string, tersimpan = false): never {
   );
 }
 
+// Mengalihkan ke halaman yang sama dengan jangkar. Kalau alamatnya hanya berbeda jangkar, router Next
+// menganggapnya pindah jangkar dan tidak mengambil ulang halaman, jadi layar tetap menampilkan data lama (dan
+// simpan berikutnya menimpa data baru dengan keadaan basi). Parameter `segar` membuat alamatnya berbeda, sehingga
+// halaman dimuat ulang lalu digulir ke jangkarnya.
+function segarkan(jalur: string, jangkar: string): never {
+  redirect(`${jalur}?segar=${Math.random().toString(36).slice(2, 8)}#${jangkar}`);
+}
+
 function teks(fd: FormData, kunci: string, maks = 200): string {
   return String(fd.get(kunci) ?? "").trim().slice(0, maks);
 }
@@ -588,7 +596,7 @@ export async function hapusFoto(id: number): Promise<void> {
   if (!f) redirect("/sistem/aset");
   await jalankan("DELETE FROM aset_foto WHERE id = ?", id);
   await hapusBerkasFoto(f.berkas);
-  redirect(`/sistem/aset/${f.aset_id}#foto`);
+  segarkan(`/sistem/aset/${f.aset_id}`, "foto");
 }
 
 // Foto dengan urutan terkecil menjadi sampul di katalog.
@@ -598,7 +606,7 @@ export async function jadikanSampul(id: number): Promise<void> {
   if (!f) redirect("/sistem/aset");
   const awal = (await satu<{ n: number }>("SELECT MIN(urutan) AS n FROM aset_foto WHERE aset_id = ?", f.aset_id))!.n;
   await jalankan("UPDATE aset_foto SET urutan = ? WHERE id = ?", awal - 1, id);
-  redirect(`/sistem/aset/${f.aset_id}#foto`);
+  segarkan(`/sistem/aset/${f.aset_id}`, "foto");
 }
 
 export async function tambahPerawatan(asetId: number, fd: FormData): Promise<void> {
@@ -687,7 +695,7 @@ export async function centangTugas(id: number, fd: FormData): Promise<void> {
     teks(fd, "catatan", 500),
     id,
   );
-  redirect(`/sistem/jadwal#tugas-${id}`);
+  segarkan("/sistem/jadwal", `tugas-${id}`);
 }
 
 // Tutup periode dan bagi hasil
