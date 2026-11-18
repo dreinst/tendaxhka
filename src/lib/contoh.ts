@@ -28,6 +28,18 @@ export async function isiDataContoh(sandi: string): Promise<void> {
       await jalankan("INSERT INTO pengguna (nama, username, sandi, peran) VALUES (?, ?, ?, ?)", nama, username, hashSandi(sandi), peran);
     }
 
+    // Identitas usaha untuk kop penawaran dan faktur, juga kontak di website. Semuanya jelas karangan supaya tidak
+    // tertukar dengan data asli, dan diganti lewat halaman Pengaturan. Telepon sengaja dikosongkan: nomor karangan
+    // akan menjadi tombol WhatsApp di website dan bisa saja milik orang sungguhan.
+    const identitas = {
+      alamat: "Jl. Contoh No. 1, Kota Contoh",
+      email: "halo@example.com",
+      rekening: "Bank Contoh 000-000-0000 a.n. Tenda Indonesia",
+    };
+    for (const [kunci, nilai] of Object.entries(identitas)) {
+      await jalankan("INSERT INTO pengaturan (kunci, nilai) VALUES (?, ?) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai", kunci, nilai);
+    }
+
     // [kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi]
     const aset: [string, string, string, string, string, number, number, string][] = [
       ["TS-33", "Tenda Sarnafil", "Tenda", "3x3 m", "unit", 20, 450_000, "Cukup untuk satu stan atau meja registrasi."],

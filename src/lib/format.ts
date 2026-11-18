@@ -57,6 +57,11 @@ export const LABEL_PERAN: Record<string, string> = {
   partner: "Partner",
 };
 
+// Waktu tersimpan ("2026-11-14 22:30:05", WIB) untuk dibaca orang, misalnya "14 Nov 2026, 22.30".
+export function waktu(w: string): string {
+  return `${tanggal(w.slice(0, 10))}, ${w.slice(11, 16).replace(":", ".")}`;
+}
+
 // Waktu sekarang di WIB, misalnya "2026-11-14 22:30:05". Urutannya sama dengan urutan teks.
 export function waktuKini(): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: ZONA, dateStyle: "short", timeStyle: "medium" }).format(new Date());

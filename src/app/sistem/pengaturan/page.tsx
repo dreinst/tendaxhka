@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { Bidang, Kepala, nilai, Pesan, type Cari } from "@/komponen/ui";
+import { JagaIsian } from "@/komponen/jaga-isian";
+import { Panel } from "@/komponen/panel";
+import { Bidang, JudulKartu, Kepala, Lencana, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { simpanPengaturan, simpanPengguna } from "@/lib/aksi";
 import { wajib } from "@/lib/auth";
 import { pengaturan, type Pengguna } from "@/lib/data";
@@ -8,15 +10,16 @@ import { LABEL_PERAN } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
+// Formulir satu pengguna, ditaruh di dalam Panel. Tanpa `p` berarti pengguna baru (id isian berakhiran "-baru").
 function FormPengguna({ p }: { p?: Pengguna }) {
   const k = p?.id ?? "baru";
   return (
-    <form action={simpanPengguna} className="grid gap-2 md:grid-cols-5">
+    <form action={simpanPengguna} className="grid gap-3">
       {p && <input type="hidden" name="id" value={p.id} />}
       <Bidang label="Nama" id={`nama-${k}`}>
         <input className="isian" id={`nama-${k}`} name="nama" required maxLength={80} defaultValue={p?.nama} />
       </Bidang>
-      <Bidang label="Username" id={`username-${k}`}>
+      <Bidang label="Nama pengguna" id={`username-${k}`}>
         <input className="isian" id={`username-${k}`} name="username" required maxLength={30} autoCapitalize="none" defaultValue={p?.username} />
       </Bidang>
       <Bidang label="Peran" id={`peran-${k}`}>
@@ -27,11 +30,11 @@ function FormPengguna({ p }: { p?: Pengguna }) {
       <Bidang label={p ? "Kata sandi baru (opsional)" : "Kata sandi"} id={`sandi-${k}`}>
         <input className="isian" id={`sandi-${k}`} name="sandi" type="password" minLength={8} required={!p} autoComplete="new-password" />
       </Bidang>
-      <div className="flex items-end gap-3">
-        <label className="flex min-h-10 items-center gap-2 text-sm">
-          <input type="checkbox" name="aktif" defaultChecked={p ? !!p.aktif : true} className="size-4" /> Aktif
-        </label>
-        <button className="tombol tombol-tinta">{p ? "Simpan" : "Tambah"}</button>
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input type="checkbox" name="aktif" defaultChecked={p ? !!p.aktif : true} className="size-5" /> Aktif
+      </label>
+      <div className="pt-1">
+        <button className="tombol tombol-utama">{p ? "Simpan" : "Tambah"}</button>
       </div>
     </form>
   );
@@ -120,22 +123,51 @@ export default async function Pengaturan({ searchParams }: { searchParams: Cari 
             <textarea className="isian" id="checklist_bongkar" name="checklist_bongkar" rows={7} defaultValue={s.checklist_bongkar} />
           </Bidang>
         </section>
-        <button className="tombol tombol-utama">Simpan pengaturan</button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="tombol tombol-utama">Simpan pengaturan</button>
+          <JagaIsian kunci="pengaturan" />
+        </div>
       </form>
 
-      <section className="kartu mt-6 space-y-4 p-4">
-        <h2 className="text-sm font-bold">Pengguna</h2>
-        <p className="-mt-2 text-xs text-tinta-lembut">
+      <section className="kartu mt-6 p-4">
+        <JudulKartu judul="Pengguna">
+          <Panel tombol="Pengguna baru" judul="Pengguna baru" kelasTombol="tombol tombol-tinta">
+            <FormPengguna />
+          </Panel>
+        </JudulKartu>
+        <p className="-mt-1 mb-3 text-xs text-tinta-lembut">
           Admin mengatur semuanya. Sales memegang CRM dan pesanan. Gudang memegang aset dan jadwal. Kru mencentang checklist. Partner hanya melihat,
           termasuk keuangan dan bagi hasil.
         </p>
-        {pengguna.map((p) => (
-          <div key={p.id} className="ceruk p-3"><FormPengguna p={p} /></div>
-        ))}
-        <div className="border-t border-garis pt-4">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-tinta-lembut">Pengguna baru</h3>
-          <FormPengguna />
-        </div>
+        <table className="tabel tabel-susun md:[&_td]:align-middle">
+          <thead>
+            <tr>
+              <th scope="col">Nama</th>
+              <th scope="col">Nama pengguna</th>
+              <th scope="col">Peran</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span className="sr-only">Aksi</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pengguna.map((p) => (
+              <tr key={p.id}>
+                <th scope="row">{p.nama}</th>
+                <td className="text-tinta-lembut md:text-tinta">
+                  {p.username}
+                  <span className="md:hidden">, {LABEL_PERAN[p.peran]}</span>
+                </td>
+                <td className="susun-sembunyi">{LABEL_PERAN[p.peran]}</td>
+                <td className="susun-kanan">{p.aktif ? <Lencana nilai="selesai" teks="Aktif" /> : <Lencana nilai="batal" teks="Nonaktif" />}</td>
+                <td className="susun-kanan w-px py-1 align-middle">
+                  <Panel tombol="Ubah" labelTombol={`Ubah pengguna ${p.nama}`} judul={`Ubah pengguna ${p.nama}`} kelasTombol="tombol tombol-kecil">
+                    <FormPengguna p={p} />
+                  </Panel>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     </>
   );

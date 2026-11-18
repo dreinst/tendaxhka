@@ -34,38 +34,65 @@ export default async function HalamanPesanan({ searchParams }: { searchParams: C
           </Link>
         ))}
       </nav>
-      <div className="kartu overflow-hidden">
+      <div className="kartu">
         {pesanan.length === 0 ? (
           <Kosong>Belum ada pesanan di saringan ini.</Kosong>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="tabel">
-              <thead>
-                <tr>
-                  <th scope="col">Nomor</th>
-                  <th scope="col">Acara</th>
-                  <th scope="col">Pelanggan</th>
-                  <th scope="col">Pasang sampai bongkar</th>
-                  <th scope="col">Status</th>
-                  {tampakNilai && <th scope="col" className="angka">Total</th>}
-                  {tampakNilai && <th scope="col" className="angka">Sisa tagihan</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {pesanan.map((p) => (
+          // Di HP tiap pesanan menjadi blok: nomor, acara, pelanggan, dan tanggal di kiri, lalu status, total, dan
+          // sisa tagihan di kanan.
+          <table className="tabel tabel-susun">
+            <thead>
+              <tr>
+                <th scope="col">Nomor</th>
+                <th scope="col">Acara</th>
+                <th scope="col">Pelanggan</th>
+                <th scope="col">Pasang sampai bongkar</th>
+                <th scope="col">Status</th>
+                {tampakNilai && <th scope="col" className="angka">Total</th>}
+                {tampakNilai && <th scope="col" className="angka">Sisa tagihan</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {pesanan.map((p) => {
+                const tagih = p.status !== "penawaran" && p.status !== "batal";
+                return (
                   <tr key={p.id}>
-                    <td><Link href={`/sistem/pesanan/${p.id}`} className="font-semibold underline underline-offset-2">{p.nomor}</Link></td>
-                    <td>{p.acara}</td>
-                    <td>{p.kontak}{p.perusahaan && <span className="block text-xs text-tinta-lembut">{p.perusahaan}</span>}</td>
-                    <td className="whitespace-nowrap">{tanggal(p.mulai)} sampai {tanggal(p.selesai)}</td>
-                    <td><Lencana nilai={p.status} /></td>
-                    {tampakNilai && <td className="angka">{rupiah(p.total)}</td>}
-                    {tampakNilai && <td className="angka">{p.status === "penawaran" || p.status === "batal" ? "" : rupiah(p.sisa)}</td>}
+                    <td className="whitespace-nowrap">
+                      <Link href={`/sistem/pesanan/${p.id}`} className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2 md:min-h-0">
+                        {p.nomor}
+                      </Link>
+                    </td>
+                    <td className="font-semibold md:font-normal">{p.acara}</td>
+                    <td className="text-tinta-lembut md:text-tinta">
+                      {p.kontak}
+                      {p.perusahaan && <span className="text-xs text-tinta-lembut max-md:before:content-[',_'] md:block">{p.perusahaan}</span>}
+                    </td>
+                    <td className="text-tinta-lembut md:whitespace-nowrap md:text-tinta">{tanggal(p.mulai)} sampai {tanggal(p.selesai)}</td>
+                    <td className="susun-kanan max-md:self-center"><Lencana nilai={p.status} /></td>
+                    {tampakNilai && (
+                      <td className="angka susun-kanan">
+                        <span className="text-xs text-tinta-lembut md:hidden">Total </span>
+                        {rupiah(p.total)}
+                      </td>
+                    )}
+                    {tampakNilai && (
+                      <td className={`angka susun-kanan ${tagih ? "" : "max-md:hidden"} ${tagih && p.sisa > 0 ? "font-semibold" : "text-rumput"}`}>
+                        {tagih &&
+                          (p.sisa > 0 ? (
+                            <>
+                              <span className="text-xs font-normal text-tinta-lembut md:hidden">Sisa </span>
+                              {rupiah(p.sisa)}
+                            </>
+                          ) : (
+                            "Lunas"
+                          ))}
+                      </td>
+                    )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </>

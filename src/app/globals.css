@@ -144,6 +144,23 @@ h3 {
   font-size: 0.95rem;
 }
 
+/* Aksi kecil berupa teks di dalam baris tabel (misalnya Hapus). Tinggi dan lebarnya minimal 44 px supaya mudah
+   disentuh. */
+@utility tombol-teks {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding-inline: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-terpal-gelap);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* Garis isian dibuat cukup gelap supaya batasnya lolos kontras 3:1 terhadap latar putih. */
 @utility isian {
   width: 100%;
@@ -157,6 +174,14 @@ h3 {
   &::placeholder {
     color: #5a6c70;
   }
+}
+
+/* Tautan teks yang target sentuhnya diperbesar sampai 44 px tanpa mengubah tampilan dan tinggi barisnya:
+   padding atas dan bawah ditambah, lalu ditarik kembali dengan margin negatif. */
+@utility sentuh {
+  display: inline-block;
+  padding-block: max(0px, calc((2.75rem - 1lh) / 2));
+  margin-block: min(0px, calc((1lh - 2.75rem) / 2));
 }
 
 @utility label {
@@ -205,14 +230,252 @@ h3 {
     color: var(--color-tinta);
     border-bottom: 1px solid #ede6d9;
   }
-  .tabel tr:last-child td {
+  .tabel :is(tbody, tfoot) tr:last-child :is(td, th) {
     border-bottom: 0;
+  }
+  .tabel tfoot :is(td, th) {
+    border-bottom: 0;
+  }
+  .tabel tfoot tr:first-child :is(td, th) {
+    border-top: 1px solid var(--color-garis);
+  }
+  .tabel tfoot th {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.88rem;
+    color: var(--color-tinta);
   }
   .angka {
     text-align: right !important;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+
+  /* Pola tabel HP. Tambahkan kelas `tabel-susun` di samping `tabel`. Di bawah lebar md (layar saja, cetakan
+     tetap tabel) tiap baris menjadi blok dua kolom tanpa gulir samping dan kepala tabel disembunyikan:
+     - sel biasa masuk kolom kiri dan berurutan ke bawah (pengenal, keterangan);
+     - `susun-kanan` masuk kolom kanan dan rata kanan (status, nominal, tombol), mengisi dari baris teratas;
+     - `susun-penuh` selebar blok;
+     - sel dengan `data-label="Pendapatan"` menjadi baris "Pendapatan ..... Rp 1.000" selebar blok;
+     - `susun-sembunyi` hilang di HP, biasanya karena isinya sudah diringkas di sel pengenal.
+     Nomor dan kode diberi `whitespace-nowrap` supaya tidak patah. */
+  @media screen and (width < 48rem) {
+    .tabel-susun,
+    .tabel-susun tbody,
+    .tabel-susun tfoot {
+      display: block;
+    }
+    .tabel-susun thead {
+      display: none;
+    }
+    .tabel-susun tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-auto-flow: row dense;
+      column-gap: 0.75rem;
+      row-gap: 0.2rem;
+      padding: 0.65rem 0.75rem;
+      border-bottom: 1px solid #ede6d9;
+    }
+    .tabel-susun tbody tr:last-child {
+      border-bottom: 0;
+    }
+    .tabel-susun tfoot tr {
+      border-bottom: 0;
+      border-top: 1px solid var(--color-garis);
+    }
+    .tabel-susun :is(td, th) {
+      display: block;
+      grid-column: 1;
+      /* !important supaya lebar dari utilitas seperti `w-px` (sel aksi di layar lebar) tidak membuat sel
+         selebar 1 px dan tombolnya meluap keluar layar. */
+      width: auto !important;
+      min-width: 0;
+      padding: 0;
+      text-align: left;
+    }
+    /* Kelas diulang supaya mengalahkan garis dari `.tabel tbody th` dan `.tabel tfoot tr:first-child td`. */
+    .tabel.tabel-susun.tabel-susun :is(td, th) {
+      border: 0;
+    }
+    .tabel-susun .susun-kanan {
+      grid-column: 2;
+      justify-self: end;
+      text-align: right;
+    }
+    .tabel-susun .susun-penuh {
+      grid-column: 1 / -1;
+    }
+    .tabel-susun [data-label] {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .tabel-susun [data-label]::before {
+      content: attr(data-label);
+      color: var(--color-tinta-lembut);
+      font-size: 0.8rem;
+      font-weight: 400;
+      text-align: left;
+      white-space: normal;
+    }
+    .tabel-susun .susun-sembunyi {
+      display: none;
+    }
+  }
+
+  /* Panel samping, dipakai oleh komponen Panel (src/komponen/panel.tsx). Di HP menjadi lembar selebar layar
+     dari bawah. Mulai lebar md muncul dari kanan setinggi layar, lebarnya dari --lebar-panel. */
+  .panel {
+    position: fixed;
+    inset: auto 0 0 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    padding: 0;
+    border: 0;
+    border-radius: 14px 14px 0 0;
+    background: #fff;
+    color: var(--color-tinta);
+    box-shadow: 0 -8px 30px rgb(14 49 56 / 0.18);
+    overflow: hidden;
+    /* Panel sering diletakkan di sel tabel, jadi gaya teks sel (rata kanan, nowrap, huruf kecil) direset. */
+    text-align: left;
+    white-space: normal;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .panel[open] {
+    display: flex;
+    flex-direction: column;
+    animation: panel-naik 0.2s ease-out;
+  }
+  .panel::backdrop {
+    background: rgb(10 37 41 / 0.45);
+  }
+  .panel-kepala {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--color-garis);
+  }
+  .panel-isi {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1rem 1rem max(1.25rem, env(safe-area-inset-bottom));
+  }
+  /* Selama formulir di panel dikirim, isinya dikunci (inert) dan diredupkan. */
+  .panel-isi[aria-busy="true"] {
+    opacity: 0.6;
+  }
+  .panel-sibuk {
+    padding: 0.6rem 1rem max(0.6rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-garis);
+    background: var(--color-kertas);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  /* Di layar lebar tingginya mengikuti isi, paling tinggi selayar. Panel berisi pendek (misalnya konfirmasi
+     hapus) tidak lagi berupa lajur kosong setinggi layar. */
+  @media (width >= 48rem) {
+    .panel {
+      inset: 0 0 auto auto;
+      width: var(--lebar-panel, 30rem);
+      max-width: calc(100vw - 3rem);
+      height: auto;
+      max-height: 100dvh;
+      border-radius: 0 0 0 14px;
+      box-shadow: -8px 0 30px rgb(14 49 56 / 0.18);
+    }
+    .panel[open] {
+      animation-name: panel-geser;
+    }
+    .panel-kepala,
+    .panel-isi,
+    .panel-sibuk {
+      padding-inline: 1.5rem;
+    }
+  }
+}
+
+@keyframes panel-naik {
+  from {
+    transform: translateY(1.5rem);
+    opacity: 0;
+  }
+}
+@keyframes panel-geser {
+  from {
+    transform: translateX(2rem);
+    opacity: 0;
+  }
+}
+
+/* Menu sistem (src/komponen/menu-sistem.tsx). Di HP berupa laci dari kanan yang dibuka dengan showModal. Mulai
+   lebar md dialog yang sama tampil sebagai sidebar walau tidak terbuka, karena gaya di sini mengalahkan
+   `display: none` bawaan browser untuk dialog tertutup. */
+@layer components {
+  .laci {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: var(--color-tinta);
+    color: #fff;
+  }
+  .laci[open] {
+    position: fixed;
+    inset: 0 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    width: min(20rem, 86vw);
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: -8px 0 30px rgb(14 49 56 / 0.25);
+    animation: laci-geser 0.2s ease-out;
+  }
+  .laci::backdrop {
+    background: rgb(10 37 41 / 0.45);
+  }
+  @media (width >= 48rem) {
+    .laci,
+    .laci[open] {
+      position: sticky;
+      inset: 0 auto auto 0;
+      display: flex;
+      flex-direction: column;
+      width: auto;
+      height: 100vh;
+      max-height: none;
+      overflow-y: auto;
+      box-shadow: none;
+      animation: none;
+    }
+  }
+}
+
+@keyframes laci-geser {
+  from {
+    transform: translateX(2rem);
+    opacity: 0;
+  }
+}
+
+/* Halaman di belakang panel atau laci menu tidak ikut bergulir. */
+html:has(dialog:is(.panel, .laci)[open]) {
+  overflow: hidden;
 }
 
 /* Chip kategori: dipakai sebagai tombol saringan di katalog. */

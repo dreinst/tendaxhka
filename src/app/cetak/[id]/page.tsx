@@ -10,6 +10,14 @@ import { nilaiBaris } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Cetak dokumen", robots: { index: false, follow: false } };
 
+// Kalimat tentang ketersediaan tenda di dokumen penawaran, menurut status pesanannya. Pesanan selesai atau batal
+// tidak diberi kalimat.
+const CATATAN_KUNCI: Record<string, string> = {
+  penawaran: "Ketersediaan tenda dikunci sesudah booking dikonfirmasi.",
+  booking: "Booking sudah dikonfirmasi. Tenda untuk tanggal acara ini sudah dikunci.",
+  berjalan: "Booking sudah dikonfirmasi. Tenda untuk tanggal acara ini sudah dikunci.",
+};
+
 export default async function Cetak({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
   const u = await wajib("pesanan.lihat");
   // Dokumen ini memuat harga serta telepon dan email pelanggan.
@@ -26,7 +34,7 @@ export default async function Cetak({ params, searchParams }: { params: Promise<
   return (
     <main className="mx-auto max-w-[210mm] p-4 print:p-0">
       <div className="tanpa-cetak mb-4 flex justify-end"><TombolCetak /></div>
-      <article className="bg-white p-10 text-sm text-tinta shadow print:p-0 print:shadow-none">
+      <article className="bg-white p-5 text-sm text-tinta shadow sm:p-10 print:p-0 print:shadow-none">
         <header className="flex items-start justify-between gap-6 border-b-4 border-terpal pb-5">
           <div>
             <p className="font-judul text-xl font-bold">{s.nama_usaha}</p>
@@ -40,7 +48,7 @@ export default async function Cetak({ params, searchParams }: { params: Promise<
           </div>
         </header>
 
-        <section className="grid grid-cols-2 gap-6 py-5">
+        <section className="grid gap-4 py-5 sm:grid-cols-2 sm:gap-6 print:grid-cols-2 print:gap-6">
           <div>
             <p className="text-xs font-bold uppercase text-tinta-lembut">Kepada</p>
             <p className="font-semibold">{k.nama}</p>
@@ -55,7 +63,9 @@ export default async function Cetak({ params, searchParams }: { params: Promise<
           </div>
         </section>
 
-        <table className="tabel">
+        {/* Di layar HP tabel ini memakai pola tabel-susun: jumlah, hari, dan harga diringkas di bawah keterangan
+            dan nilai rata kanan. Cetakan selalu tabel lengkap karena pola itu hanya berlaku untuk layar. */}
+        <table className="tabel tabel-susun">
           <thead>
             <tr>
               <th scope="col">Keterangan</th>
@@ -68,17 +78,22 @@ export default async function Cetak({ params, searchParams }: { params: Promise<
           <tbody>
             {baris.map((b) => (
               <tr key={b.id}>
-                <td>{b.deskripsi}</td>
-                <td className="angka">{b.jumlah}</td>
-                <td className="angka">{b.hari}</td>
-                <td className="angka">{rupiah(b.harga)}</td>
-                <td className="angka">{rupiah(nilaiBaris(b))}</td>
+                <td>
+                  {b.deskripsi}
+                  <span className="block text-xs text-tinta-lembut md:hidden print:hidden">
+                    {b.jumlah} × {b.hari} hari × {rupiah(b.harga)}
+                  </span>
+                </td>
+                <td className="angka susun-sembunyi">{b.jumlah}</td>
+                <td className="angka susun-sembunyi">{b.hari}</td>
+                <td className="angka susun-sembunyi">{rupiah(b.harga)}</td>
+                <td className="angka susun-kanan">{rupiah(nilaiBaris(b))}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <dl className="ml-auto mt-4 grid w-72 grid-cols-2 gap-y-1 border-t-2 border-tinta pt-3">
+        <dl className="ml-auto mt-4 grid w-full max-w-72 grid-cols-2 gap-y-1 border-t-2 border-tinta pt-3">
           {p.diskon > 0 && (
             <>
               <dt>Subtotal</dt><dd className="angka">{rupiah(p.subtotal)}</dd>
@@ -96,7 +111,7 @@ export default async function Cetak({ params, searchParams }: { params: Promise<
 
         {p.catatan && <p className="mt-6"><span className="font-semibold">Catatan:</span> {p.catatan}</p>}
         {faktur && s.rekening && <p className="mt-2"><span className="font-semibold">Pembayaran ke:</span> {s.rekening}</p>}
-        {!faktur && <p className="mt-6 text-xs text-tinta-lembut">Ketersediaan tenda dikunci sesudah booking dikonfirmasi.</p>}
+        {!faktur && CATATAN_KUNCI[p.status] && <p className="mt-6 text-xs text-tinta-lembut">{CATATAN_KUNCI[p.status]}</p>}
       </article>
     </main>
   );

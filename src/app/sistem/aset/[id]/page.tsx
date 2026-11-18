@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { FormAset } from "@/komponen/form-aset";
-import { Bidang, Kepala, Kosong, nilai, Pesan, type Cari } from "@/komponen/ui";
+import { Panel } from "@/komponen/panel";
+import { Bidang, JudulKartu, Kepala, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { UnggahFoto } from "@/komponen/unggah-foto";
 import { hapusFoto, jadikanSampul, selesaiPerawatan, tambahPerawatan } from "@/lib/aksi";
 import { wajib } from "@/lib/auth";
@@ -30,12 +32,37 @@ export default async function DetailAset({ params, searchParams }: { params: Pro
     <>
       <Kepala judul={`${a.nama} ${a.ukuran}`} ket={`${a.kode}. ${a.jumlah} ${a.satuan}, ${rupiah(a.harga)} per hari.`} />
       <Pesan galat={nilai(sp.galat)} ok={nilai(sp.ok) || undefined} />
-      {tulis && (
-        <section className="kartu mb-5 p-4">
-          <h2 className="mb-3 text-sm font-bold">Data aset</h2>
-          <FormAset aset={a} />
-        </section>
-      )}
+      <section className="kartu mb-5 p-4">
+        <JudulKartu judul="Data aset">
+          {tulis && (
+            <Panel tombol="Ubah" labelTombol="Ubah data aset" judul={`Ubah ${a.nama} ${a.ukuran}`.trim()} lebar="lebar">
+              <FormAset aset={a} />
+            </Panel>
+          )}
+        </JudulKartu>
+        <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm md:grid-cols-[8.5rem_minmax(0,1fr)_8.5rem_minmax(0,1fr)]">
+          {(
+            [
+              ["Kode", <span key="k" className="whitespace-nowrap font-mono">{a.kode}</span>],
+              ["Kategori", a.kategori],
+              ["Ukuran", a.ukuran],
+              ["Jumlah dimiliki", `${a.jumlah} ${a.satuan}`],
+              ["Harga per hari", rupiah(a.harga)],
+              ["Kapasitas", a.kapasitas],
+              ["Cocok untuk", a.cocok],
+              ["Status", a.aktif ? "Aktif disewakan" : "Tidak disewakan"],
+              ["Katalog website", a.tampil_web ? "Ditampilkan" : "Disembunyikan"],
+            ] as const
+          ).map(([label, isi]) => (
+            <Fragment key={label}>
+              <dt className="text-tinta-lembut">{label}</dt>
+              <dd>{isi || <span className="text-tinta-lembut">Belum diisi</span>}</dd>
+            </Fragment>
+          ))}
+          <dt className="col-span-2 mt-1 text-tinta-lembut md:col-span-4">Deskripsi untuk website</dt>
+          <dd className="col-span-2 md:col-span-4">{a.deskripsi || <span className="text-tinta-lembut">Belum diisi</span>}</dd>
+        </dl>
+      </section>
       <section id="foto" className="kartu mb-5 scroll-mt-4 p-4">
         <h2 className="mb-1 text-sm font-bold">Foto untuk katalog website</h2>
         <p className="mb-3 text-xs text-tinta-lembut">
@@ -70,47 +97,55 @@ export default async function DetailAset({ params, searchParams }: { params: Pro
         {tulis && <UnggahFoto asetId={a.id} sisa={MAKS_FOTO_PER_ASET - foto.length} />}
       </section>
       <section className="kartu p-4">
-        <h2 className="mb-1 text-sm font-bold">Perawatan dan perbaikan</h2>
-        <p className="mb-3 text-xs text-tinta-lembut">Unit yang sedang diperbaiki tidak dihitung tersedia sampai ditandai selesai.</p>
+        <JudulKartu judul="Perawatan dan perbaikan">
+          {tulis && (
+            <Panel tombol="Catat perawatan" judul="Catat perawatan" ket="Unit yang sedang diperbaiki tidak dihitung tersedia sampai ditandai selesai.">
+              <form action={tambahPerawatan.bind(null, a.id)} className="grid grid-cols-2 gap-3">
+                <Bidang label="Unit" id="rawat_jumlah">
+                  <input className="isian" id="rawat_jumlah" name="jumlah" type="number" min={1} max={a.jumlah} required defaultValue={1} />
+                </Bidang>
+                <Bidang label="Mulai" id="rawat_mulai">
+                  <input className="isian" id="rawat_mulai" name="mulai" type="date" required defaultValue={hariIni()} />
+                </Bidang>
+                <Bidang label="Catatan" id="rawat_catatan" className="col-span-2">
+                  <input className="isian" id="rawat_catatan" name="catatan" maxLength={300} placeholder="Atap sobek, rangka bengkok" />
+                </Bidang>
+                <div className="col-span-2 pt-1">
+                  <button className="tombol tombol-utama">Catat perawatan</button>
+                </div>
+              </form>
+            </Panel>
+          )}
+        </JudulKartu>
         {rawat.length === 0 ? (
-          <Kosong>Belum ada catatan perawatan.</Kosong>
+          <p className="text-sm text-tinta-lembut">Belum ada catatan perawatan. Unit yang sedang diperbaiki tidak dihitung tersedia sampai ditandai selesai.</p>
         ) : (
-          <table className="tabel mb-3">
+          <table className="tabel tabel-susun md:[&_td]:align-middle">
             <thead>
-              <tr><th scope="col">Mulai</th><th scope="col">Selesai</th><th scope="col" className="angka">Unit</th><th scope="col">Catatan</th><th scope="col"><span className="sr-only">Aksi</span></th></tr>
+              <tr><th scope="col">Mulai</th><th scope="col">Selesai</th><th scope="col" className="angka">Unit</th><th scope="col">Catatan</th>{tulis && <th scope="col"><span className="sr-only">Aksi</span></th>}</tr>
             </thead>
             <tbody>
               {rawat.map((r) => (
                 <tr key={r.id}>
-                  <td className="whitespace-nowrap">{tanggal(r.mulai)}</td>
-                  <td className="whitespace-nowrap">{r.selesai ? tanggal(r.selesai) : "Masih diperbaiki"}</td>
-                  <td className="angka">{r.jumlah}</td>
-                  <td>{r.catatan}</td>
-                  <td>
-                    {tulis && !r.selesai && (
-                      <form action={selesaiPerawatan.bind(null, r.id)}>
-                        <button className="tombol tombol-kecil">Tandai selesai</button>
-                      </form>
-                    )}
+                  <td className="whitespace-nowrap font-semibold md:font-normal">{tanggal(r.mulai)}</td>
+                  <td className="whitespace-nowrap text-tinta-lembut md:text-tinta">
+                    {r.selesai ? <><span className="md:hidden">Selesai </span>{tanggal(r.selesai)}</> : "Masih diperbaiki"}
                   </td>
+                  <td className="angka susun-kanan">{r.jumlah}<span className="md:hidden"> unit</span></td>
+                  <td className="text-tinta-lembut md:text-tinta">{r.catatan}</td>
+                  {tulis && (
+                    <td className="susun-kanan w-px py-1">
+                      {!r.selesai && (
+                        <form action={selesaiPerawatan.bind(null, r.id)}>
+                          <button className="tombol tombol-kecil whitespace-nowrap">Tandai selesai</button>
+                        </form>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-        {tulis && (
-          <form action={tambahPerawatan.bind(null, a.id)} className="flex flex-wrap items-end gap-2 border-t border-garis pt-3">
-            <Bidang label="Unit" id="rawat_jumlah">
-              <input className="isian w-24" id="rawat_jumlah" name="jumlah" type="number" min={1} max={a.jumlah} required defaultValue={1} />
-            </Bidang>
-            <Bidang label="Mulai" id="rawat_mulai">
-              <input className="isian" id="rawat_mulai" name="mulai" type="date" required defaultValue={hariIni()} />
-            </Bidang>
-            <Bidang label="Catatan" id="rawat_catatan" className="min-w-48 flex-1">
-              <input className="isian" id="rawat_catatan" name="catatan" maxLength={300} placeholder="Atap sobek, rangka bengkok" />
-            </Bidang>
-            <button className="tombol tombol-tinta">Catat perawatan</button>
-          </form>
         )}
       </section>
     </>

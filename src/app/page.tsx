@@ -3,6 +3,7 @@ import Link from "next/link";
 import { IkonCentang, IkonPanah } from "@/komponen/ikon";
 import { Katalog } from "@/komponen/katalog";
 import { KakiSitus, KepalaSitus, tautanWa } from "@/komponen/situs";
+import { JagaIsian } from "@/komponen/jaga-isian";
 import { Bidang, LabelAtas, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { kirimPermintaan } from "@/lib/aksi";
 import { rupiah } from "@/lib/format";
@@ -175,7 +176,18 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                   <input className="isian" id="nama" name="nama" required maxLength={80} autoComplete="name" />
                 </Bidang>
                 <Bidang label="Telepon atau WhatsApp (wajib)" id="telepon">
-                  <input className="isian" id="telepon" name="telepon" required inputMode="tel" maxLength={30} autoComplete="tel" />
+                  <input
+                    className="isian"
+                    id="telepon"
+                    name="telepon"
+                    required
+                    inputMode="tel"
+                    maxLength={30}
+                    autoComplete="tel"
+                    // Sama dengan pemeriksaan di kirimPermintaan, supaya salah ketik tertangkap sebelum dikirim.
+                    pattern="[\d+\s\(\)\-]{8,30}"
+                    title="Nomor telepon 8 sampai 30 karakter, boleh memakai angka, spasi, tanda tambah, kurung, dan tanda hubung"
+                  />
                 </Bidang>
                 <Bidang label="Perusahaan atau instansi" id="perusahaan">
                   <input className="isian" id="perusahaan" name="perusahaan" maxLength={120} autoComplete="organization" />
@@ -210,6 +222,8 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                     </a>
                   )}
                   <p className="text-[13px] text-tinta-lembut">Isian selain nama dan telepon boleh dikosongkan.</p>
+                  {/* Kalau kiriman ditolak server, isian yang sudah diketik pengunjung dikembalikan. */}
+                  <JagaIsian kunci="permintaan" />
                 </div>
               </form>
             </div>

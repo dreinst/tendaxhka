@@ -79,7 +79,7 @@ export function UnggahFoto({ asetId, sisa }: { asetId: number; sisa: number }) {
         className={`grid cursor-pointer gap-1 rounded-[10px] border-2 border-dashed px-4 py-5 text-center text-sm ${seret ? "border-terpal bg-[#fdeeeb]" : "border-[#c9bca3] bg-white"}`}
       >
         <span className="font-semibold">{sibuk ? status : "Klik untuk memilih foto, atau seret ke sini"}</span>
-        <span className="text-xs text-tinta-lembut">JPG atau PNG, bisa beberapa sekaligus. Disimpan dalam kualitas HD (1920 piksel). Sisa tempat: {sisa} foto.</span>
+        <span className="text-xs text-tinta-lembut">JPG atau PNG, bisa beberapa sekaligus. Disimpan dalam kualitas HD. Sisa tempat: {sisa} foto.</span>
       </label>
       <input ref={masukan} id="unggah-foto" type="file" accept="image/*" multiple className="sr-only" disabled={sibuk} onChange={(e) => void kirim(e.target.files)} />
       {galat && (

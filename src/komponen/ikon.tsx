@@ -26,6 +26,14 @@ export function IkonTutup({ className }: Props) {
   );
 }
 
+export function IkonMenu({ className }: Props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden className={className}>
+      <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // Lambang usaha: atap tenda dengan pintu berwarna terpal. Versi "terang" dipakai di atas blok teal.
 export function LambangTenda({ className, terang }: Props & { terang?: boolean }) {
   return (

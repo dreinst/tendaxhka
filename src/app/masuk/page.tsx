@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { JagaIsian } from "@/komponen/jaga-isian";
 import { Bidang, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { masuk } from "@/lib/aksi";
 import { penggunaSaatIni } from "@/lib/auth";
@@ -33,13 +34,15 @@ export default async function Masuk({ searchParams }: { searchParams: Cari }) {
                 </Bidang>
               </>
             )}
-            <Bidang label="Username" id="username">
+            <Bidang label="Nama pengguna" id="username">
               <input className="isian" id="username" name="username" required autoComplete="username" autoCapitalize="none" />
             </Bidang>
             <Bidang label="Kata sandi" id="sandi">
               <input className="isian" id="sandi" name="sandi" type="password" required minLength={pertama ? 8 : undefined} autoComplete={pertama ? "new-password" : "current-password"} />
             </Bidang>
             <button className="tombol tombol-utama w-full">{pertama ? "Buat akun dan masuk" : "Masuk"}</button>
+            {/* Mengembalikan nama dan username kalau masuk gagal. Kata sandi dan kode penyiapan tidak pernah disimpan. */}
+            <JagaIsian kunci="masuk" />
           </form>
         </div>
       </div>

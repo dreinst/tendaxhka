@@ -6,6 +6,13 @@ import { satu, semua } from "@/lib/db";
 import { hariIni, LABEL_TAHAP, LABEL_TUGAS, namaBulan, persen, rupiah, tanggal } from "@/lib/format";
 import { boleh, geserBulan, tambahHari } from "@/lib/hitung";
 
+const KOLOM: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-2 lg:grid-cols-3 max-lg:[&>:last-child]:col-span-2",
+  4: "grid-cols-2 lg:grid-cols-4",
+};
+
 function Angka({ label, nilai: n, ket }: { label: string; nilai: string; ket?: string }) {
   return (
     <div className="kartu p-4">
@@ -56,6 +63,29 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
   const hitung = (t: string) => tahap.find((x) => x.tahap === t)?.n ?? 0;
   const putus = hitung("menang") + hitung("kalah");
 
+  // Kartu operasional yang tampil bergantung pada peran, jadi jumlah kolomnya mengikuti jumlah kartu supaya
+  // tidak ada baris yang setengah kosong (kru hanya punya satu kartu, gudang dua).
+  const menang = hitung("menang");
+  const operasional: { label: string; nilai: string; ket?: string }[] = [
+    { label: "Utilisasi aset", nilai: persen(util.rata), ket: "Unit-hari tersewa bulan ini" },
+    ...(lihatPesanan && tampakNilai
+      ? [
+          { label: "Piutang", nilai: rupiah(piutang), ket: `${aktif.filter((p) => p.sisa > 0).length} pesanan belum lunas` },
+          { label: "Penawaran terbuka", nilai: rupiah(terbuka.reduce((s, p) => s + p.total, 0)), ket: `${terbuka.length} penawaran` },
+        ]
+      : []),
+    ...(lihatPesanan && !tampakNilai ? [{ label: "Penawaran terbuka", nilai: String(terbuka.length), ket: "Belum dikonfirmasi pelanggan" }] : []),
+    ...(lihatKontak
+      ? [
+          {
+            label: "Tingkat menang",
+            nilai: putus ? persen(menang / putus) : "Belum ada",
+            ket: putus ? `${menang} dari ${putus} lead yang sudah diputuskan menjadi pesanan` : "Belum ada lead yang menang atau kalah",
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
       <Kepala judul="Dasbor" ket={`${namaBulan(bulan)}. Halo, ${u.nama}.`} />
@@ -70,12 +100,10 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
         </section>
       )}
 
-      <section aria-label="Operasional" className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Angka label="Utilisasi aset" nilai={persen(util.rata)} ket="Unit-hari tersewa bulan ini" />
-        {lihatPesanan && tampakNilai && <Angka label="Piutang" nilai={rupiah(piutang)} ket={`${aktif.filter((p) => p.sisa > 0).length} pesanan belum lunas`} />}
-        {lihatPesanan && tampakNilai && <Angka label="Penawaran terbuka" nilai={rupiah(terbuka.reduce((s, p) => s + p.total, 0))} ket={`${terbuka.length} penawaran`} />}
-        {lihatPesanan && !tampakNilai && <Angka label="Penawaran terbuka" nilai={String(terbuka.length)} ket="Belum dikonfirmasi pelanggan" />}
-        {lihatKontak && <Angka label="Tingkat menang" nilai={putus ? persen(hitung("menang") / putus) : "Belum ada"} ket={`${berulang} pelanggan memesan berulang`} />}
+      <section aria-label="Operasional" className={`mb-6 grid gap-3 ${KOLOM[operasional.length] ?? KOLOM[4]}`}>
+        {operasional.map((a) => (
+          <Angka key={a.label} {...a} />
+        ))}
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -128,7 +156,7 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
               {jadwal.map((t) => (
                 <li key={t.id} className="flex items-start justify-between gap-3 py-2">
                   <div>
-                    <Link href={`/sistem/jadwal#tugas-${t.id}`} className="font-semibold underline-offset-2 hover:underline">
+                    <Link href={`/sistem/jadwal#tugas-${t.id}`} className="sentuh font-semibold underline-offset-2 hover:underline">
                       {LABEL_TUGAS[t.jenis]}: {t.acara}
                     </Link>
                     <p className="text-xs text-tinta-lembut">{t.lokasi || "Lokasi belum diisi"} · {t.kru || "Kru belum ditugaskan"}</p>
@@ -150,13 +178,14 @@ export default async function Dasbor({ searchParams }: { searchParams: Cari }) {
                 <Lencana key={t} nilai={t} teks={`${LABEL_TAHAP[t]} ${hitung(t)}`} />
               ))}
             </p>
+            {berulang > 0 && <p className="-mt-1 mb-3 text-xs text-tinta-lembut">{berulang} pelanggan sudah memesan lebih dari sekali.</p>}
             {tindak.length === 0 ? (
               <Kosong>Tidak ada tindak lanjut yang jatuh tempo.</Kosong>
             ) : (
               <ul className="divide-y divide-[#ebe3d3] text-sm">
                 {tindak.map((k) => (
                   <li key={k.id} className="flex justify-between gap-3 py-2">
-                    <Link href={`/sistem/kontak/${k.id}`} className="font-semibold underline-offset-2 hover:underline">
+                    <Link href={`/sistem/kontak/${k.id}`} className="sentuh font-semibold underline-offset-2 hover:underline">
                       {k.nama}{k.perusahaan && `, ${k.perusahaan}`}
                     </Link>
                     <span className="shrink-0 text-xs text-tinta-lembut">{tanggal(k.tindak_lanjut)}</span>

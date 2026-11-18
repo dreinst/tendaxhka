@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { MenuSistem } from "@/komponen/menu-sistem";
 import { keluar } from "@/lib/aksi";
 import { wajib } from "@/lib/auth";
 import { LABEL_PERAN } from "@/lib/format";
@@ -24,28 +24,16 @@ export default async function LayoutSistem({ children }: { children: React.React
   const u = await wajib();
   return (
     <div className="min-h-screen md:grid md:grid-cols-[14rem_1fr]">
-      <aside className="tanpa-cetak bg-tinta text-white md:sticky md:top-0 md:h-screen md:overflow-y-auto">
-        <div className="border-b border-white/10 px-4 pb-3 pt-4">
-          <Link href="/sistem" className="font-judul text-sm font-bold">
-            Tenda Indonesia
-          </Link>
-          <p className="text-xs text-white/60">bersama HKA Management</p>
-        </div>
-        <nav aria-label="Menu sistem" className="flex gap-1 overflow-x-auto px-2 py-2 md:block md:space-y-1">
-          {MENU.filter((m) => !m.hak || boleh(u.peran, m.hak)).map((m) => (
-            <Link key={m.href} href={m.href} className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white">
-              {m.teks}
-            </Link>
-          ))}
-        </nav>
-        <div className="border-t border-white/15 px-4 py-3 text-xs">
-          <p className="font-semibold">{u.nama}</p>
-          <p className="text-white/60">{LABEL_PERAN[u.peran]}</p>
+      <MenuSistem
+        menu={MENU.filter((m) => !m.hak || boleh(u.peran, m.hak)).map(({ href, teks }) => ({ href, teks }))}
+        nama={u.nama}
+        peran={LABEL_PERAN[u.peran]}
+        keluar={
           <form action={keluar} className="mt-2">
-            <button className="underline underline-offset-2 hover:text-lampu">Keluar</button>
+            <button className="tombol tombol-terang min-h-11 w-full">Keluar</button>
           </form>
-        </div>
-      </aside>
+        }
+      />
       <main className="min-w-0 p-4 md:p-7">{children}</main>
     </div>
   );

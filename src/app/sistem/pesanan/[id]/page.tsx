@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormPesanan } from "@/komponen/formulir";
-import { Bidang, Kepala, Kosong, Lencana, nilai, Pesan, type Cari } from "@/komponen/ui";
+import { Panel } from "@/komponen/panel";
+import { Bidang, JudulKartu, Kepala, Lencana, nilai, Pesan, type Cari } from "@/komponen/ui";
 import {
   duplikatPesanan,
   hapusBiaya,
@@ -31,6 +32,12 @@ const LANGKAH: Record<string, { ke: string; teks: string; utama?: boolean }[]> =
   batal: [{ ke: "penawaran", teks: "Buka lagi sebagai penawaran" }],
 };
 
+const OPSI_TUGAS = Object.entries(LABEL_TUGAS).map(([v, teks]) => (
+  <option key={v} value={v}>
+    {teks}
+  </option>
+));
+
 export default async function DetailPesanan({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Cari }) {
   const u = await wajib("pesanan.lihat");
   const p = await ambilPesanan(Number((await params).id) || 0);
@@ -42,6 +49,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
   const tulisJadwal = boleh(u.peran, "jadwal.tulis");
   const bisaUbah = tulis && p.status !== "selesai" && p.status !== "batal";
   const dipesan = p.status !== "penawaran" && p.status !== "batal";
+  const bisaHapus = tulis && (p.status === "penawaran" || p.status === "batal");
 
   // Kueri di bawah tidak saling bergantung, jadi dijalankan bersamaan. Pembayaran hanya diambil kalau akun ini
   // boleh melihat nilai pesanan.
@@ -67,13 +75,22 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
   ]);
   const totalBiaya = biaya.reduce((s, b) => s + b.jumlah, 0);
   const hari = hariIni();
+  // Penawaran tanpa pembayaran cukup diberi satu baris keterangan. Kartu pembayaran dan biaya baru berdampingan
+  // di layar lebar kalau keduanya tampil penuh.
+  const bayarRingkas = !dipesan && bayar.length === 0;
+  // Penawaran (atau pesanan batal) yang belum pernah dibayar: ringkasan nilai cukup total penawarannya.
+  const penawaranSaja = !dipesan && p.dibayar === 0;
+  const berdampingan = tampakNilai && !bayarRingkas && lihatUang;
+  const lebarPenuh = berdampingan ? "" : "xl:col-span-2";
+  const kolomNilai = tampakNilai ? 2 : 0;
 
   return (
     <>
       <Kepala judul={`${p.nomor} · ${p.acara}`} ket={`${p.kontak}${p.perusahaan && `, ${p.perusahaan}`}. Pasang ${tanggal(p.mulai)}, bongkar ${tanggal(p.selesai)}.`}>
         <Lencana nilai={p.status} />
-        {tampakNilai && <Link href={`/cetak/${p.id}?jenis=penawaran`} target="_blank" className="tombol tombol-kecil">Cetak penawaran</Link>}
+        {/* Sesudah faktur terbit, faktur yang paling sering dicetak, jadi tombolnya didahulukan. */}
         {tampakNilai && p.tgl_faktur && <Link href={`/cetak/${p.id}?jenis=faktur`} target="_blank" className="tombol tombol-kecil">Cetak faktur</Link>}
+        {tampakNilai && <Link href={`/cetak/${p.id}?jenis=penawaran`} target="_blank" className="tombol tombol-kecil">Cetak penawaran</Link>}
       </Kepala>
       <Pesan galat={galat} />
 
@@ -84,7 +101,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
       )}
 
       {tulis && (
-        <div className="tanpa-cetak mb-5 flex flex-wrap gap-2">
+        <div className="tanpa-cetak mb-5 flex flex-wrap items-center gap-2">
           {LANGKAH[p.status].map((l) => (
             <form key={l.ke} action={ubahStatus.bind(null, p.id, l.ke)}>
               <button className={`tombol ${l.utama ? "tombol-utama" : ""}`}>{l.teks}</button>
@@ -95,122 +112,261 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
               <button className="tombol tombol-tinta">Terbitkan faktur</button>
             </form>
           )}
+          <Panel tombol="Pesan ulang" judul="Pesan ulang" ket="Menyalin baris dan harga pesanan ini menjadi penawaran baru di tanggal lain.">
+            <form action={duplikatPesanan.bind(null, p.id)} className="space-y-4">
+              <Bidang label="Tanggal pasang baru" id="dup_mulai">
+                <input className="isian" id="dup_mulai" name="mulai" type="date" required />
+              </Bidang>
+              <button className="tombol tombol-utama">Salin jadi penawaran</button>
+            </form>
+          </Panel>
+          {/* Hapus ditaruh di ujung kanan dan selalu lewat konfirmasi, supaya tidak tertekan saat mengincar tombol lain. */}
+          {bisaHapus && (
+            <div className="sm:ml-auto">
+              <Panel
+                tombol="Hapus pesanan"
+                kelasTombol="tombol text-terpal-gelap"
+                judul={`Hapus ${p.nomor}?`}
+                ket={`${p.acara}, ${p.kontak}. Baris barang dan jadwalnya ikut terhapus dan tidak bisa dikembalikan. Biaya yang sudah dicatat tetap tersimpan, tanpa nomor pesanan.`}
+              >
+                <form action={hapusPesanan.bind(null, p.id)}>
+                  <button className="tombol tombol-utama">Hapus pesanan</button>
+                </form>
+              </Panel>
+            </div>
+          )}
         </div>
       )}
 
-      {tampakNilai && <section aria-label="Ringkasan nilai" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          ["Total", rupiah(p.total), p.diskon ? `Sesudah diskon ${rupiah(p.diskon)}` : ""],
-          ["Sudah dibayar", rupiah(p.dibayar), ""],
-          ["Sisa tagihan", rupiah(p.sisa), p.tgl_faktur ? `Faktur ${tanggal(p.tgl_faktur)}` : "Faktur belum terbit"],
-          ...(lihatUang ? [["Laba pesanan", rupiah(p.total - totalBiaya), `Biaya langsung ${rupiah(totalBiaya)}`]] : []),
-        ].map(([label, n, ket]) => (
-          <div key={label} className="kartu p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">{label}</p>
-            <p className="mt-1 font-judul text-lg font-bold tabular-nums">{n}</p>
-            {ket && <p className="mt-1 text-xs text-tinta-lembut">{ket}</p>}
-          </div>
-        ))}
-      </section>}
-
-      <section className="kartu mb-5 p-4">
-        <h2 className="mb-3 text-sm font-bold">Rincian pesanan</h2>
-        {pilihan ? (
-          <FormPesanan
-            pesanan={p}
-            baris={baris}
-            kontak={pilihan[0]}
-            aset={pilihan[1]}
-          />
+      {tampakNilai &&
+        (penawaranSaja ? (
+          // Belum ada pesanan, jadi belum ada pembayaran, sisa tagihan, atau laba. Cukup nilai penawarannya, plus
+          // biaya langsung yang sudah keluar (misalnya survei) kalau ada.
+          <section aria-label="Ringkasan nilai" className="kartu mb-5 flex min-w-0 flex-wrap items-baseline gap-x-8 gap-y-2 px-4 py-3">
+            <p className="flex min-w-0 flex-wrap items-baseline gap-x-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Total penawaran</span>
+              <span className="font-judul text-lg font-bold tabular-nums">{rupiah(p.total)}</span>
+              {p.diskon > 0 && <span className="text-xs text-tinta-lembut">Sesudah diskon {rupiah(p.diskon)}</span>}
+            </p>
+            {lihatUang && totalBiaya > 0 && (
+              <p className="flex min-w-0 flex-wrap items-baseline gap-x-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">Biaya langsung</span>
+                <span className="font-judul text-lg font-bold tabular-nums">{rupiah(totalBiaya)}</span>
+              </p>
+            )}
+          </section>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="tabel">
+          <section aria-label="Ringkasan nilai" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ["Total", rupiah(p.total), p.diskon ? `Sesudah diskon ${rupiah(p.diskon)}` : ""],
+              ["Sudah dibayar", rupiah(p.dibayar), ""],
+              ["Sisa tagihan", rupiah(p.sisa), p.tgl_faktur ? `Faktur ${tanggal(p.tgl_faktur)}` : "Faktur belum terbit"],
+              ...(lihatUang ? [["Laba pesanan", rupiah(p.total - totalBiaya), `Biaya langsung ${rupiah(totalBiaya)}`]] : []),
+            ].map(([label, n, ket]) => (
+              <div key={label} className="kartu min-w-0 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-tinta-lembut">{label}</p>
+                <p className="mt-1 font-judul text-lg font-bold tabular-nums">{n}</p>
+                {ket && <p className="mt-1 text-xs text-tinta-lembut">{ket}</p>}
+              </div>
+            ))}
+          </section>
+        ))}
+
+      {/* grid-cols-1 (minmax(0, 1fr)) dan min-w-0 menjaga isi kartu tidak melebarkan halaman di HP. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="kartu min-w-0 p-4 xl:col-span-2">
+          <JudulKartu judul="Rincian pesanan">
+            {pilihan && (
+              <Panel tombol="Ubah rincian" judul={`Ubah rincian ${p.nomor}`} lebar="lebar">
+                <FormPesanan pesanan={p} baris={baris} kontak={pilihan[0]} aset={pilihan[1]} />
+              </Panel>
+            )}
+          </JudulKartu>
+          {baris.length === 0 ? (
+            <p className="px-3 text-sm text-tinta-lembut">Belum ada barang atau jasa di pesanan ini.</p>
+          ) : (
+            <table className="tabel tabel-susun">
               <thead>
-                <tr><th scope="col">Keterangan</th><th scope="col" className="angka">Jumlah</th><th scope="col" className="angka">Hari</th>{tampakNilai && <th scope="col" className="angka">Harga</th>}{tampakNilai && <th scope="col" className="angka">Nilai</th>}</tr>
+                <tr>
+                  <th scope="col">Keterangan</th>
+                  <th scope="col" className="angka">Jumlah</th>
+                  <th scope="col" className="angka">Hari</th>
+                  {tampakNilai && <th scope="col" className="angka">Harga</th>}
+                  {tampakNilai && <th scope="col" className="angka">Nilai</th>}
+                </tr>
               </thead>
               <tbody>
                 {baris.map((b) => (
                   <tr key={b.id}>
-                    <td>{b.deskripsi}</td>
-                    <td className="angka">{b.jumlah}</td>
-                    <td className="angka">{b.hari}</td>
-                    {tampakNilai && <td className="angka">{rupiah(b.harga)}</td>}
-                    {tampakNilai && <td className="angka">{rupiah(nilaiBaris(b))}</td>}
+                    <td>
+                      {b.deskripsi}
+                      <span className="block text-xs text-tinta-lembut md:hidden">
+                        {b.jumlah} × {b.hari} hari{tampakNilai && ` × ${rupiah(b.harga)}`}
+                      </span>
+                    </td>
+                    <td className="angka susun-sembunyi">{b.jumlah}</td>
+                    <td className="angka susun-sembunyi">{b.hari}</td>
+                    {tampakNilai && <td className="angka susun-sembunyi">{rupiah(b.harga)}</td>}
+                    {tampakNilai && <td className="angka susun-kanan">{rupiah(nilaiBaris(b))}</td>}
                   </tr>
                 ))}
               </tbody>
+              {tampakNilai && (
+                <tfoot>
+                  {p.diskon > 0 && (
+                    <>
+                      <tr>
+                        <th scope="row" colSpan={2 + kolomNilai} className="md:text-right">Subtotal</th>
+                        <td className="angka susun-kanan">{rupiah(p.subtotal)}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row" colSpan={2 + kolomNilai} className="md:text-right">Diskon</th>
+                        <td className="angka susun-kanan">{rupiah(-p.diskon)}</td>
+                      </tr>
+                    </>
+                  )}
+                  <tr>
+                    <th scope="row" colSpan={2 + kolomNilai} className="md:text-right">Total</th>
+                    <td className="angka susun-kanan font-bold">{rupiah(p.total)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
-            {p.lokasi && <p className="mt-3 text-sm">Lokasi: {p.lokasi}</p>}
-            {p.catatan && <p className="mt-1 text-sm">Catatan: {p.catatan}</p>}
-          </div>
-        )}
-      </section>
+          )}
+          {(p.lokasi || p.catatan) && (
+            <dl className="mt-3 grid gap-x-4 gap-y-1 border-t border-garis px-3 pt-3 text-sm sm:grid-cols-[5rem_minmax(0,1fr)]">
+              {p.lokasi && (
+                <>
+                  <dt className="text-tinta-lembut">Lokasi</dt>
+                  <dd>{p.lokasi}</dd>
+                </>
+              )}
+              {p.catatan && (
+                <>
+                  <dt className="text-tinta-lembut">Catatan</dt>
+                  <dd>{p.catatan}</dd>
+                </>
+              )}
+            </dl>
+          )}
+        </section>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        {tampakNilai && <section className="kartu p-4">
-          <h2 className="mb-3 text-sm font-bold">Pembayaran masuk</h2>
-          {bayar.length === 0 ? (
-            <Kosong>{dipesan ? "Belum ada pembayaran." : "Pembayaran dicatat sesudah pesanan dibooking."}</Kosong>
+        {tampakNilai &&
+          (bayarRingkas ? (
+            <section className={`kartu flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 ${lebarPenuh}`}>
+              <h2 className="text-sm font-bold">Pembayaran masuk</h2>
+              <p className="text-sm text-tinta-lembut">Dicatat sesudah pesanan dibooking.</p>
+            </section>
           ) : (
-            <table className="tabel mb-3">
-              <tbody>
-                {bayar.map((b) => (
-                  <tr key={b.id}>
-                    <td className="whitespace-nowrap">{tanggal(b.tanggal)}</td>
-                    <td>{b.metode}{b.catatan && `, ${b.catatan}`}</td>
-                    <td className="angka">{rupiah(b.jumlah)}</td>
-                    {tulisUang && (
-                      <td className="w-px">
-                        <form action={hapusPembayaran.bind(null, b.id)}>
-                          <button className="text-xs text-terpal-gelap underline" aria-label={`Hapus pembayaran ${tanggal(b.tanggal)}`}>Hapus</button>
-                        </form>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {tulis && dipesan && p.sisa > 0 && (
-            <form action={tambahPembayaran.bind(null, p.id)} className="grid grid-cols-2 gap-2 border-t border-garis pt-3">
-              <Bidang label="Tanggal" id="bayar_tanggal">
-                <input className="isian" id="bayar_tanggal" name="tanggal" type="date" required defaultValue={hari} />
-              </Bidang>
-              <Bidang label="Jumlah (Rp)" id="bayar_jumlah">
-                <input className="isian" id="bayar_jumlah" name="jumlah" inputMode="numeric" required />
-              </Bidang>
-              <Bidang label="Metode" id="bayar_metode">
-                <select className="isian" id="bayar_metode" name="metode">
-                  <option value="transfer">Transfer</option>
-                  <option value="tunai">Tunai</option>
-                  <option value="lainnya">Lainnya</option>
-                </select>
-              </Bidang>
-              <Bidang label="Catatan" id="bayar_catatan">
-                <input className="isian" id="bayar_catatan" name="catatan" placeholder="DP, pelunasan" maxLength={200} />
-              </Bidang>
-              <div className="col-span-2"><button className="tombol tombol-tinta">Catat pembayaran</button></div>
-            </form>
-          )}
-        </section>}
+            <section className={`kartu min-w-0 p-4 ${lebarPenuh}`}>
+              <JudulKartu judul="Pembayaran masuk">
+                {tulis && dipesan && p.sisa > 0 && (
+                  <Panel tombol="Catat pembayaran" judul="Catat pembayaran" ket={`Sisa tagihan ${rupiah(p.sisa)}.`}>
+                    <form action={tambahPembayaran.bind(null, p.id)} className="grid grid-cols-2 gap-3">
+                      <Bidang label="Tanggal" id="bayar_tanggal">
+                        <input className="isian" id="bayar_tanggal" name="tanggal" type="date" required defaultValue={hari} />
+                      </Bidang>
+                      <Bidang label="Jumlah (Rp)" id="bayar_jumlah">
+                        <input className="isian" id="bayar_jumlah" name="jumlah" inputMode="numeric" required />
+                      </Bidang>
+                      <Bidang label="Metode" id="bayar_metode">
+                        <select className="isian" id="bayar_metode" name="metode">
+                          <option value="transfer">Transfer</option>
+                          <option value="tunai">Tunai</option>
+                          <option value="lainnya">Lainnya</option>
+                        </select>
+                      </Bidang>
+                      <Bidang label="Catatan" id="bayar_catatan">
+                        <input className="isian" id="bayar_catatan" name="catatan" placeholder="DP, pelunasan" maxLength={200} />
+                      </Bidang>
+                      <div className="col-span-2 pt-1">
+                        <button className="tombol tombol-utama">Catat pembayaran</button>
+                      </div>
+                    </form>
+                  </Panel>
+                )}
+              </JudulKartu>
+              {bayar.length === 0 ? (
+                <p className="px-3 text-sm text-tinta-lembut">Belum ada pembayaran.</p>
+              ) : (
+                <table className="tabel tabel-susun md:[&_td]:align-middle">
+                  <thead>
+                    <tr>
+                      <th scope="col">Tanggal</th>
+                      <th scope="col">Metode</th>
+                      <th scope="col" className="angka">Jumlah</th>
+                      {tulisUang && <th scope="col"><span className="sr-only">Aksi</span></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bayar.map((b) => (
+                      <tr key={b.id}>
+                        <td className="whitespace-nowrap">{tanggal(b.tanggal)}</td>
+                        <td className="text-tinta-lembut md:text-tinta">{b.metode}{b.catatan && `, ${b.catatan}`}</td>
+                        <td className="angka susun-kanan font-semibold md:font-normal">{rupiah(b.jumlah)}</td>
+                        {tulisUang && (
+                          <td className="susun-kanan w-px py-0 align-middle">
+                            <form action={hapusPembayaran.bind(null, b.id)}>
+                              <button className="tombol-teks" aria-label={`Hapus pembayaran ${tanggal(b.tanggal)}`}>Hapus</button>
+                            </form>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          ))}
 
         {lihatUang && (
-          <section className="kartu p-4">
-            <h2 className="mb-3 text-sm font-bold">Biaya langsung</h2>
+          <section className={`kartu min-w-0 p-4 ${lebarPenuh}`}>
+            <JudulKartu judul="Biaya langsung">
+              {tulisUang && (
+                <Panel tombol="Catat biaya" judul="Catat biaya langsung" ket={`Biaya yang hanya dipakai untuk ${p.nomor}, misalnya transport dan upah kru.`}>
+                  <form action={tambahBiaya} className="grid grid-cols-2 gap-3">
+                    <input type="hidden" name="pesanan_id" value={p.id} />
+                    <Bidang label="Tanggal" id="biaya_tanggal">
+                      <input className="isian" id="biaya_tanggal" name="tanggal" type="date" required defaultValue={hari} />
+                    </Bidang>
+                    <Bidang label="Jumlah (Rp)" id="biaya_jumlah">
+                      <input className="isian" id="biaya_jumlah" name="jumlah" inputMode="numeric" required />
+                    </Bidang>
+                    <Bidang label="Kategori" id="biaya_kategori" className="col-span-2">
+                      <input className="isian" id="biaya_kategori" name="kategori" required placeholder="Transport, upah kru" maxLength={60} />
+                    </Bidang>
+                    <Bidang label="Keterangan" id="biaya_keterangan" className="col-span-2">
+                      <input className="isian" id="biaya_keterangan" name="keterangan" maxLength={300} />
+                    </Bidang>
+                    <div className="col-span-2 pt-1">
+                      <button className="tombol tombol-utama">Catat biaya</button>
+                    </div>
+                  </form>
+                </Panel>
+              )}
+            </JudulKartu>
             {biaya.length === 0 ? (
-              <Kosong>Belum ada biaya untuk pesanan ini.</Kosong>
+              <p className="px-3 text-sm text-tinta-lembut">Belum ada biaya untuk pesanan ini.</p>
             ) : (
-              <table className="tabel mb-3">
+              <table className="tabel tabel-susun md:[&_td]:align-middle">
+                <thead>
+                  <tr>
+                    <th scope="col">Tanggal</th>
+                    <th scope="col">Kategori</th>
+                    <th scope="col" className="angka">Jumlah</th>
+                    {tulisUang && <th scope="col"><span className="sr-only">Aksi</span></th>}
+                  </tr>
+                </thead>
                 <tbody>
                   {biaya.map((b) => (
                     <tr key={b.id}>
                       <td className="whitespace-nowrap">{tanggal(b.tanggal)}</td>
-                      <td>{b.kategori}{b.keterangan && `, ${b.keterangan}`}</td>
-                      <td className="angka">{rupiah(b.jumlah)}</td>
+                      <td className="text-tinta-lembut md:text-tinta">{b.kategori}{b.keterangan && `, ${b.keterangan}`}</td>
+                      <td className="angka susun-kanan font-semibold md:font-normal">{rupiah(b.jumlah)}</td>
                       {tulisUang && (
-                        <td className="w-px">
+                        <td className="susun-kanan w-px py-0 align-middle">
                           <form action={hapusBiaya.bind(null, b.id)}>
-                            <button className="text-xs text-terpal-gelap underline" aria-label={`Hapus biaya ${b.kategori}`}>Hapus</button>
+                            <button className="tombol-teks" aria-label={`Hapus biaya ${b.kategori}`}>Hapus</button>
                           </form>
                         </td>
                       )}
@@ -219,111 +375,103 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
                 </tbody>
               </table>
             )}
-            {tulisUang && (
-              <form action={tambahBiaya} className="grid grid-cols-2 gap-2 border-t border-garis pt-3">
-                <input type="hidden" name="pesanan_id" value={p.id} />
-                <Bidang label="Tanggal" id="biaya_tanggal">
-                  <input className="isian" id="biaya_tanggal" name="tanggal" type="date" required defaultValue={hari} />
-                </Bidang>
-                <Bidang label="Jumlah (Rp)" id="biaya_jumlah">
-                  <input className="isian" id="biaya_jumlah" name="jumlah" inputMode="numeric" required />
-                </Bidang>
-                <Bidang label="Kategori" id="biaya_kategori">
-                  <input className="isian" id="biaya_kategori" name="kategori" required placeholder="Transport, upah kru" maxLength={60} />
-                </Bidang>
-                <Bidang label="Keterangan" id="biaya_keterangan">
-                  <input className="isian" id="biaya_keterangan" name="keterangan" maxLength={300} />
-                </Bidang>
-                <div className="col-span-2"><button className="tombol tombol-tinta">Catat biaya</button></div>
-              </form>
-            )}
           </section>
         )}
 
-        <section className="kartu p-4 xl:col-span-2">
-          <h2 className="mb-3 text-sm font-bold">Jadwal dan kru</h2>
+        <section className="kartu min-w-0 p-4 xl:col-span-2">
+          <JudulKartu judul="Jadwal dan kru">
+            {tulisJadwal && p.status !== "batal" && (
+              <Panel tombol="Tambah tugas" judul="Tambah tugas" ket="Survei, pasang, bongkar, atau tugas lain untuk pesanan ini.">
+                <form action={simpanTugas.bind(null, p.id)} className="grid grid-cols-2 gap-3">
+                  <Bidang label="Jenis tugas" id="tugas_jenis">
+                    <select className="isian" id="tugas_jenis" name="jenis" defaultValue="survei">
+                      {OPSI_TUGAS}
+                    </select>
+                  </Bidang>
+                  <Bidang label="Tanggal" id="tugas_tanggal">
+                    <input className="isian" id="tugas_tanggal" name="tanggal" type="date" required defaultValue={p.mulai} />
+                  </Bidang>
+                  <Bidang label="Kru (pisahkan dengan koma)" id="tugas_kru" className="col-span-2">
+                    <input className="isian" id="tugas_kru" name="kru" maxLength={200} />
+                  </Bidang>
+                  <div className="col-span-2 pt-1">
+                    <button className="tombol tombol-utama">Tambah tugas</button>
+                  </div>
+                </form>
+              </Panel>
+            )}
+          </JudulKartu>
           {tugas.length === 0 ? (
-            <Kosong>Jadwal pasang dan bongkar dibuat otomatis saat pesanan dibooking.</Kosong>
+            <p className="px-3 text-sm text-tinta-lembut">Jadwal pasang dan bongkar dibuat otomatis saat pesanan dibooking.</p>
           ) : (
-            <ul className="mb-3 grid gap-3 md:grid-cols-2">
-              {tugas.map((t) => {
-                const butir = bacaChecklist(t.checklist);
-                return (
-                  <li key={t.id} className="ceruk p-3 text-sm">
-                    <p className="font-semibold">
-                      {LABEL_TUGAS[t.jenis]}, {tanggal(t.tanggal)} {t.selesai ? <Lencana nilai="selesai" /> : null}
-                    </p>
-                    <p className="text-xs text-tinta-lembut">
-                      Kru: {t.kru || "belum ditugaskan"}. Checklist {butir.filter((b) => b.beres).length} dari {butir.length}.
-                    </p>
-                    {tulisJadwal && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-xs font-semibold">Ubah tugas</summary>
-                        <form action={simpanTugas.bind(null, p.id)} className="mt-2 grid grid-cols-2 gap-2">
-                          <input type="hidden" name="id" value={t.id} />
-                          <Bidang label="Jenis" id={`jenis-${t.id}`}>
-                            <select className="isian" id={`jenis-${t.id}`} name="jenis" defaultValue={t.jenis}>
-                              {Object.entries(LABEL_TUGAS).map(([v, teks]) => <option key={v} value={v}>{teks}</option>)}
-                            </select>
-                          </Bidang>
-                          <Bidang label="Tanggal" id={`tgl-${t.id}`}>
-                            <input className="isian" id={`tgl-${t.id}`} name="tanggal" type="date" required defaultValue={t.tanggal} />
-                          </Bidang>
-                          <Bidang label="Kru (pisahkan dengan koma)" id={`kru-${t.id}`} className="col-span-2">
-                            <input className="isian" id={`kru-${t.id}`} name="kru" maxLength={200} defaultValue={t.kru} />
-                          </Bidang>
-                          <Bidang label="Checklist, satu butir per baris" id={`butir-${t.id}`} className="col-span-2">
-                            <textarea className="isian" id={`butir-${t.id}`} name="butir" rows={5} defaultValue={butir.map((b) => b.teks).join("\n")} />
-                          </Bidang>
-                          <div className="col-span-2 flex gap-2">
-                            <button className="tombol tombol-kecil tombol-tinta">Simpan</button>
-                            <button formAction={hapusTugas.bind(null, t.id)} formNoValidate className="tombol tombol-kecil">Hapus tugas</button>
-                          </div>
-                        </form>
-                      </details>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {tulisJadwal && p.status !== "batal" && (
-            <form action={simpanTugas.bind(null, p.id)} className="flex flex-wrap items-end gap-2 border-t border-garis pt-3">
-              <Bidang label="Tugas baru" id="tugas_jenis">
-                <select className="isian" id="tugas_jenis" name="jenis" defaultValue="survei">
-                  {Object.entries(LABEL_TUGAS).map(([v, teks]) => <option key={v} value={v}>{teks}</option>)}
-                </select>
-              </Bidang>
-              <Bidang label="Tanggal" id="tugas_tanggal">
-                <input className="isian" id="tugas_tanggal" name="tanggal" type="date" required defaultValue={p.mulai} />
-              </Bidang>
-              <Bidang label="Kru" id="tugas_kru" className="min-w-48 flex-1">
-                <input className="isian" id="tugas_kru" name="kru" maxLength={200} />
-              </Bidang>
-              <button className="tombol tombol-tinta">Tambah tugas</button>
-            </form>
+            <table className="tabel tabel-susun md:[&_td]:align-middle">
+              <thead>
+                <tr>
+                  <th scope="col">Tugas</th>
+                  <th scope="col">Kru</th>
+                  <th scope="col">Checklist</th>
+                  <th scope="col">Status</th>
+                  {tulisJadwal && <th scope="col"><span className="sr-only">Aksi</span></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {tugas.map((t) => {
+                  const butir = bacaChecklist(t.checklist);
+                  const beres = butir.filter((b) => b.beres).length;
+                  return (
+                    <tr key={t.id}>
+                      <td className="whitespace-nowrap font-semibold">
+                        {LABEL_TUGAS[t.jenis]}, {tanggal(t.tanggal)}
+                      </td>
+                      <td className="text-tinta-lembut md:text-tinta">{t.kru || "Kru belum ditugaskan"}</td>
+                      <td className="whitespace-nowrap text-tinta-lembut md:text-tinta">
+                        <span className="md:hidden">Checklist </span>
+                        {beres} dari {butir.length}
+                      </td>
+                      <td className="susun-kanan">
+                        {t.selesai ? <Lencana nilai="selesai" /> : <Lencana nilai="penawaran" teks="Belum selesai" />}
+                      </td>
+                      {tulisJadwal && (
+                        <td className="susun-kanan w-px py-1 align-middle">
+                          <Panel
+                            tombol="Ubah"
+                            labelTombol={`Ubah tugas ${LABEL_TUGAS[t.jenis]} ${tanggal(t.tanggal)}`}
+                            judul={`Ubah tugas ${LABEL_TUGAS[t.jenis].toLowerCase()}, ${tanggal(t.tanggal)}`}
+                            kelasTombol="tombol tombol-kecil"
+                          >
+                            <form action={simpanTugas.bind(null, p.id)} className="grid grid-cols-2 gap-3">
+                              <input type="hidden" name="id" value={t.id} />
+                              <Bidang label="Jenis" id={`jenis-${t.id}`}>
+                                <select className="isian" id={`jenis-${t.id}`} name="jenis" defaultValue={t.jenis}>
+                                  {OPSI_TUGAS}
+                                </select>
+                              </Bidang>
+                              <Bidang label="Tanggal" id={`tgl-${t.id}`}>
+                                <input className="isian" id={`tgl-${t.id}`} name="tanggal" type="date" required defaultValue={t.tanggal} />
+                              </Bidang>
+                              <Bidang label="Kru (pisahkan dengan koma)" id={`kru-${t.id}`} className="col-span-2">
+                                <input className="isian" id={`kru-${t.id}`} name="kru" maxLength={200} defaultValue={t.kru} />
+                              </Bidang>
+                              <Bidang label="Checklist, satu butir per baris" id={`butir-${t.id}`} className="col-span-2">
+                                <textarea className="isian" id={`butir-${t.id}`} name="butir" rows={6} defaultValue={butir.map((b) => b.teks).join("\n")} />
+                              </Bidang>
+                              <div className="col-span-2 flex flex-wrap justify-between gap-2 pt-1">
+                                <button className="tombol tombol-utama">Simpan</button>
+                                <button formAction={hapusTugas.bind(null, t.id)} formNoValidate className="tombol text-terpal-gelap">
+                                  Hapus tugas
+                                </button>
+                              </div>
+                            </form>
+                          </Panel>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </section>
-
-        {tulis && (
-          <section className="kartu p-4 xl:col-span-2">
-            <h2 className="mb-1 text-sm font-bold">Pesan ulang</h2>
-            <p className="mb-3 text-xs text-tinta-lembut">Menyalin baris dan harga pesanan ini menjadi penawaran baru di tanggal lain.</p>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <form action={duplikatPesanan.bind(null, p.id)} className="flex flex-wrap items-end gap-2">
-                <Bidang label="Tanggal pasang baru" id="dup_mulai">
-                  <input className="isian" id="dup_mulai" name="mulai" type="date" required />
-                </Bidang>
-                <button className="tombol">Salin jadi penawaran</button>
-              </form>
-              {(p.status === "penawaran" || p.status === "batal") && (
-                <form action={hapusPesanan.bind(null, p.id)}>
-                  <button className="tombol text-terpal-gelap">Hapus pesanan</button>
-                </form>
-              )}
-            </div>
-          </section>
-        )}
       </div>
     </>
   );

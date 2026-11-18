@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PesanGalat } from "@/komponen/pesan-galat";
 import { LABEL_STATUS, LABEL_TAHAP } from "@/lib/format";
 
 export type Cari = Promise<Record<string, string | string[] | undefined>>;
@@ -19,13 +20,7 @@ export function LabelAtas({ children, terang }: { children: ReactNode; terang?: 
 }
 
 export function Pesan({ galat, ok }: { galat?: string; ok?: string }) {
-  if (galat) {
-    return (
-      <p role="alert" className="mb-4 rounded-md border border-terpal-gelap/40 bg-[#fde9e5] px-4 py-3 text-sm font-medium text-terpal-gelap">
-        {galat}
-      </p>
-    );
-  }
+  if (galat) return <PesanGalat>{galat}</PesanGalat>;
   if (ok) {
     return (
       <p role="status" className="mb-4 rounded-md border border-rumput/40 bg-[#e3f2ea] px-4 py-3 text-sm font-medium text-rumput">
@@ -43,7 +38,7 @@ export function Kepala({ judul, ket, children }: { judul: string; ket?: string; 
         <h1 className="text-xl font-bold md:text-2xl">{judul}</h1>
         {ket && <p className="mt-1 text-sm text-tinta-lembut">{ket}</p>}
       </div>
-      {children && <div className="tanpa-cetak flex flex-wrap gap-2">{children}</div>}
+      {children && <div className="tanpa-cetak flex flex-wrap items-center gap-2">{children}</div>}
     </header>
   );
 }
@@ -71,6 +66,16 @@ export function Bidang({ label, id, className, children }: { label: string; id: 
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// Judul kartu dengan tombol aksi di kanannya, biasanya satu atau dua Panel.
+export function JudulKartu({ judul, children }: { judul: string; children?: ReactNode }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="text-sm font-bold">{judul}</h2>
+      {children && <div className="tanpa-cetak flex flex-wrap gap-2">{children}</div>}
     </div>
   );
 }

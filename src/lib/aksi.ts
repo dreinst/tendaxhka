@@ -25,8 +25,15 @@ async function coba(fn: () => Promise<void>): Promise<string | null> {
   }
 }
 
-function gagal(jalur: string, pesan: string): never {
-  redirect(`${jalur}${jalur.includes("?") ? "&" : "?"}galat=${encodeURIComponent(pesan)}`);
+// Mengalihkan kembali dengan pesan galat. `acak` membuat alamatnya selalu baru, supaya galat yang sama dua kali
+// berturut-turut tetap terbaca sebagai kejadian baru. `tersimpan` menandai pesan yang datanya sudah masuk dan
+// hanya berisi peringatan, sehingga formulirnya tidak dibuka lagi (lihat src/komponen/jaga-isian.tsx).
+function gagal(jalur: string, pesan: string, tersimpan = false): never {
+  const [alamat, jangkar] = jalur.split("#");
+  const acak = Math.random().toString(36).slice(2, 8);
+  redirect(
+    `${alamat}${alamat.includes("?") ? "&" : "?"}galat=${encodeURIComponent(pesan)}${tersimpan ? "&tersimpan=1" : ""}&acak=${acak}${jangkar ? `#${jangkar}` : ""}`,
+  );
 }
 
 function teks(fd: FormData, kunci: string, maks = 200): string {
@@ -207,7 +214,10 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
   const diskon = uang(fd.get("diskon"), "Diskon", kembali);
   if (!(await satu("SELECT 1 FROM kontak WHERE id = ?", kontakId))) gagal(kembali, "Pilih pelanggan dulu.");
   if (!acara) gagal(kembali, "Nama acara wajib diisi.");
-  if (!tanggalSah(mulai) || !tanggalSah(selesai) || selesai < mulai) gagal(kembali, "Tanggal pasang dan bongkar tidak sah. Pakai tahun 2000 sampai 2100.");
+  if (!mulai || !selesai) gagal(kembali, "Isi tanggal pasang dan tanggal bongkar.");
+  if (!tanggalSah(mulai)) gagal(kembali, "Tanggal pasang tidak bisa dibaca. Pakai tanggal di tahun 2000 sampai 2100.");
+  if (!tanggalSah(selesai)) gagal(kembali, "Tanggal bongkar tidak bisa dibaca. Pakai tanggal di tahun 2000 sampai 2100.");
+  if (selesai < mulai) gagal(kembali, "Tanggal bongkar tidak boleh lebih awal dari tanggal pasang.");
   const lamaGalat = galatLamaPesanan(mulai, selesai);
   if (lamaGalat) gagal(kembali, lamaGalat);
 
@@ -386,7 +396,8 @@ export async function duplikatPesanan(id: number, fd: FormData): Promise<void> {
   const mulai = teks(fd, "mulai", 10);
   const p = await ambilPesanan(id);
   if (!p) gagal("/sistem/pesanan", "Pesanan tidak ditemukan.");
-  if (!tanggalSah(mulai)) gagal(`/sistem/pesanan/${id}`, "Isi tanggal pasang untuk pesanan baru (tahun 2000 sampai 2100).");
+  if (!mulai) gagal(`/sistem/pesanan/${id}`, "Isi tanggal pasang untuk pesanan baru.");
+  if (!tanggalSah(mulai)) gagal(`/sistem/pesanan/${id}`, "Tanggal pasang tidak bisa dibaca. Pakai tanggal di tahun 2000 sampai 2100.");
   const galatLama = galatLamaPesanan(p.mulai, p.selesai);
   if (galatLama) gagal(`/sistem/pesanan/${id}`, galatLama);
   const lama = selisihHari(p.mulai, p.selesai);
@@ -540,7 +551,7 @@ export async function simpanAset(fd: FormData): Promise<void> {
     );
     // Jumlah aset boleh diturunkan (unit hilang atau dijual), tapi booking yang terdampak harus terlihat.
     const peringatan = await peringatanStok(id, Number(isi[5]), hariIni());
-    if (peringatan) gagal(kembali, `Aset disimpan. ${peringatan}`);
+    if (peringatan) gagal(kembali, `Aset disimpan. ${peringatan}`, true);
   } else {
     const baru = await sisip(
       "INSERT INTO aset (kode, nama, kategori, ukuran, satuan, jumlah, harga, deskripsi, tampil_web, aktif, kapasitas, cocok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -613,7 +624,7 @@ export async function tambahPerawatan(asetId: number, fd: FormData): Promise<voi
   // Unit yang rusak tetap dicatat karena memang tidak bisa dipakai, tapi gudang dan sales perlu tahu kalau
   // booking yang sudah ada jadi kekurangan.
   const peringatan = await peringatanStok(asetId, total, mulai);
-  if (peringatan) gagal(kembali, `Perawatan dicatat. ${peringatan}`);
+  if (peringatan) gagal(kembali, `Perawatan dicatat. ${peringatan}`, true);
   redirect(kembali);
 }
 

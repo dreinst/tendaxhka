@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Bidang, Kepala, Kosong, nilai, Pesan, type Cari } from "@/komponen/ui";
+import { Panel } from "@/komponen/panel";
+import { Bidang, JudulKartu, Kepala, Kosong, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { hapusBiaya, tambahBiaya } from "@/lib/aksi";
 import { wajib } from "@/lib/auth";
 import { daftarPesanan, labaBulan, pengaturan, type Biaya } from "@/lib/data";
@@ -40,6 +41,7 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
     <>
       <Kepala judul="Keuangan" ket={`${namaBulan(bulan)}. Pendapatan dihitung dengan basis ${basis === "kas" ? "kas (uang yang diterima)" : "akrual (faktur yang terbit)"}.`}>
         {sebelumnya && <Link href={`/sistem/keuangan?bulan=${sebelumnya}`} className="tombol tombol-kecil">Bulan sebelumnya</Link>}
+        <Link href="/sistem/keuangan" className="tombol tombol-kecil">Bulan ini</Link>
         {berikutnya && <Link href={`/sistem/keuangan?bulan=${berikutnya}`} className="tombol tombol-kecil">Bulan berikutnya</Link>}
       </Kepala>
       <Pesan galat={nilai(sp.galat)} />
@@ -59,14 +61,39 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
         ))}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="kartu p-4">
-          <h2 className="mb-3 text-sm font-bold">Biaya bulan ini</h2>
+      {/* grid-cols-1 (minmax(0, 1fr)) dan min-w-0: tanpa itu kolom grid ikut selebar tabel dan kartu terpotong di HP. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="kartu min-w-0 p-4">
+          <JudulKartu judul="Biaya bulan ini">
+            {tulis && (
+              <Panel
+                tombol="Catat biaya"
+                labelTombol="Catat biaya operasional"
+                judul="Catat biaya operasional"
+                ket="Untuk biaya operasional seperti gaji, sewa gudang, dan listrik. Biaya milik satu pesanan dicatat di halaman pesanannya."
+              >
+                <form action={tambahBiaya} className="grid grid-cols-2 gap-3">
+                  <Bidang label="Tanggal" id="tanggal">
+                    <input className="isian" id="tanggal" name="tanggal" type="date" required defaultValue={hari.startsWith(bulan) ? hari : awal} />
+                  </Bidang>
+                  <Bidang label="Jumlah (Rp)" id="jumlah">
+                    <input className="isian" id="jumlah" name="jumlah" inputMode="numeric" required />
+                  </Bidang>
+                  <Bidang label="Kategori" id="kategori">
+                    <input className="isian" id="kategori" name="kategori" required maxLength={60} />
+                  </Bidang>
+                  <Bidang label="Keterangan" id="keterangan">
+                    <input className="isian" id="keterangan" name="keterangan" maxLength={300} />
+                  </Bidang>
+                  <div className="col-span-2 pt-1"><button className="tombol tombol-utama">Catat biaya operasional</button></div>
+                </form>
+              </Panel>
+            )}
+          </JudulKartu>
           {biaya.length === 0 ? (
             <Kosong>Belum ada biaya di bulan ini.</Kosong>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="tabel mb-3">
+            <table className="tabel tabel-susun">
                 <thead>
                   <tr><th scope="col">Tanggal</th><th scope="col">Kategori</th><th scope="col">Untuk</th><th scope="col" className="angka">Jumlah</th><th scope="col"><span className="sr-only">Aksi</span></th></tr>
                 </thead>
@@ -75,54 +102,35 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
                     <tr key={b.id}>
                       <td className="whitespace-nowrap">{tanggal(b.tanggal)}</td>
                       <td>{b.kategori}{b.keterangan && <span className="block text-xs text-tinta-lembut">{b.keterangan}</span>}</td>
-                      <td>{b.pesanan_id ? <Link href={`/sistem/pesanan/${b.pesanan_id}`} className="underline">{b.nomor}</Link> : "Operasional"}</td>
-                      <td className="angka">{rupiah(b.jumlah)}</td>
-                      <td>
+                      <td className="whitespace-nowrap text-sm">{b.pesanan_id ? <Link href={`/sistem/pesanan/${b.pesanan_id}`} className="sentuh underline">{b.nomor}</Link> : "Operasional"}</td>
+                      <td className="angka susun-kanan">{rupiah(b.jumlah)}</td>
+                      <td className="susun-kanan w-px py-0 align-middle">
                         {tulis && !laba.dikunci && (
                           <form action={hapusBiaya.bind(null, b.id)}>
-                            <button className="text-xs text-terpal-gelap underline" aria-label={`Hapus biaya ${b.kategori} ${tanggal(b.tanggal)}`}>Hapus</button>
+                            <button className="tombol-teks" aria-label={`Hapus biaya ${b.kategori} ${tanggal(b.tanggal)}`}>Hapus</button>
                           </form>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
-          )}
-          {tulis && (
-            <form action={tambahBiaya} className="grid grid-cols-2 gap-2 border-t border-garis pt-3">
-              <p className="col-span-2 text-xs text-tinta-lembut">Formulir ini untuk biaya operasional (gaji, sewa gudang, listrik). Biaya milik satu pesanan dicatat di halaman pesanannya.</p>
-              <Bidang label="Tanggal" id="tanggal">
-                <input className="isian" id="tanggal" name="tanggal" type="date" required defaultValue={hari.startsWith(bulan) ? hari : awal} />
-              </Bidang>
-              <Bidang label="Jumlah (Rp)" id="jumlah">
-                <input className="isian" id="jumlah" name="jumlah" inputMode="numeric" required />
-              </Bidang>
-              <Bidang label="Kategori" id="kategori">
-                <input className="isian" id="kategori" name="kategori" required maxLength={60} />
-              </Bidang>
-              <Bidang label="Keterangan" id="keterangan">
-                <input className="isian" id="keterangan" name="keterangan" maxLength={300} />
-              </Bidang>
-              <div className="col-span-2"><button className="tombol tombol-tinta">Catat biaya operasional</button></div>
-            </form>
+            </table>
           )}
         </section>
 
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <section className="kartu p-4">
             <h2 className="mb-3 text-sm font-bold">Uang masuk bulan ini</h2>
             {masuk.length === 0 ? (
               <Kosong>Belum ada pembayaran di bulan ini.</Kosong>
             ) : (
-              <table className="tabel">
+              <table className="tabel tabel-susun">
                 <tbody>
                   {masuk.map((b) => (
                     <tr key={b.id}>
                       <td className="whitespace-nowrap">{tanggal(b.tanggal)}</td>
-                      <td><Link href={`/sistem/pesanan/${b.pesanan_id}`} className="underline">{b.nomor}</Link> {b.acara}</td>
-                      <td className="angka">{rupiah(b.jumlah)}</td>
+                      <td><Link href={`/sistem/pesanan/${b.pesanan_id}`} className="sentuh whitespace-nowrap underline">{b.nomor}</Link> {b.acara}</td>
+                      <td className="angka susun-kanan">{rupiah(b.jumlah)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -134,13 +142,13 @@ export default async function Keuangan({ searchParams }: { searchParams: Cari })
             {piutang.length === 0 ? (
               <Kosong>Semua pesanan sudah lunas.</Kosong>
             ) : (
-              <table className="tabel">
+              <table className="tabel tabel-susun">
                 <tbody>
                   {piutang.map((p) => (
                     <tr key={p.id}>
-                      <td><Link href={`/sistem/pesanan/${p.id}`} className="underline">{p.nomor}</Link></td>
+                      <td className="whitespace-nowrap"><Link href={`/sistem/pesanan/${p.id}`} className="sentuh underline">{p.nomor}</Link></td>
                       <td>{p.kontak}<span className="block text-xs text-tinta-lembut">{p.acara}, {tanggal(p.mulai)}</span></td>
-                      <td className="angka">{rupiah(p.sisa)}</td>
+                      <td className="angka susun-kanan">{rupiah(p.sisa)}</td>
                     </tr>
                   ))}
                 </tbody>

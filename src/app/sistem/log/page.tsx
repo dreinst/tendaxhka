@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Kepala, Kosong, nilai, type Cari } from "@/komponen/ui";
 import { wajib } from "@/lib/auth";
 import { daftarLog } from "@/lib/data";
-import { hariIni, namaBulan } from "@/lib/format";
+import { hariIni, namaBulan, waktu } from "@/lib/format";
 import { bulanSah, geserBulanSah } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Jejak audit" };
@@ -22,32 +22,30 @@ export default async function JejakAudit({ searchParams }: { searchParams: Cari 
         <Link href="/sistem/log" className="tombol tombol-kecil">Bulan ini</Link>
         {berikutnya && <Link href={`/sistem/log?bulan=${berikutnya}`} className="tombol tombol-kecil">Bulan berikutnya</Link>}
       </Kepala>
-      <div className="kartu overflow-hidden">
+      <div className="kartu">
         {log.length === 0 ? (
           <Kosong>Belum ada catatan di bulan ini.</Kosong>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="text-left">
-                  <th scope="col" className="px-4 py-2">Waktu (WIB)</th>
-                  <th scope="col" className="px-4 py-2">Oleh</th>
-                  <th scope="col" className="px-4 py-2">Aksi</th>
-                  <th scope="col" className="px-4 py-2">Rincian</th>
+          <table className="tabel tabel-susun">
+            <thead>
+              <tr>
+                <th scope="col">Waktu (WIB)</th>
+                <th scope="col">Oleh</th>
+                <th scope="col">Aksi</th>
+                <th scope="col">Rincian</th>
+              </tr>
+            </thead>
+            <tbody>
+              {log.map((l) => (
+                <tr key={l.id}>
+                  <td className="susun-kanan whitespace-nowrap text-xs tabular-nums text-tinta-lembut md:text-sm md:text-tinta">{waktu(l.waktu)}</td>
+                  <td className="susun-kanan whitespace-nowrap text-xs text-tinta-lembut md:text-sm md:text-tinta">{l.pengguna}</td>
+                  <td className="font-semibold md:whitespace-nowrap">{l.aksi}</td>
+                  <td className="susun-penuh break-words">{l.rincian}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {log.map((l) => (
-                  <tr key={l.id} className="border-t border-[#ebe3d3] align-top">
-                    <td className="whitespace-nowrap px-4 py-2 tabular-nums">{l.waktu}</td>
-                    <td className="whitespace-nowrap px-4 py-2">{l.pengguna}</td>
-                    <td className="whitespace-nowrap px-4 py-2 font-semibold">{l.aksi}</td>
-                    <td className="px-4 py-2">{l.rincian}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </>
