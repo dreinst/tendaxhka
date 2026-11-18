@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bacaChecklist, bacaRupiah, batasBulan, boleh, bulanSah, galatLamaPesanan, geserBulanSah, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, urlFoto, utilisasi, type Pakai } from "../src/lib/hitung.ts";
+import { bacaChecklist, bacaJarakPenawaran, batasPasang, pasangTerlaluDekat, bacaRupiah, batasBulan, boleh, bulanSah, galatLamaPesanan, geserBulanSah, hitungLaba, namaFotoSah, nomorWa, rentangHari, sisaTersedia, tampakJpeg, tanggalSah, totalPesanan, urlFoto, utilisasi, type Pakai } from "../src/lib/hitung.ts";
 
 test("total pesanan mengalikan jumlah, hari, dan harga lalu memotong diskon", () => {
   const baris = [{ jumlah: 4, hari: 2, harga: 900_000 }, { jumlah: 1, hari: 1, harga: 1_500_000 }];
@@ -163,4 +163,28 @@ test("bacaRupiah membaca berbagai tulisan dan menolak yang meragukan", () => {
   for (const buruk of ["", "abc", "-5", "1.5.5", "1..500", "12.3456", "1.500,000", "0.500", "1,50,000", "1e9", "1.234.5", ".50", "99999999999999999999"]) {
     assert.equal(bacaRupiah(buruk), null, buruk);
   }
+});
+
+test("jarak penawaran: batas tepat diterima, sehari kurang ditolak", () => {
+  assert.equal(batasPasang("2026-11-18", 7), "2026-11-25");
+  assert.equal(pasangTerlaluDekat("2026-11-25", "2026-11-18", 7), false);
+  assert.equal(pasangTerlaluDekat("2026-11-24", "2026-11-18", 7), true);
+  assert.equal(pasangTerlaluDekat("2026-12-30", "2026-11-18", 7), false);
+  assert.equal(batasPasang("2026-12-28", 7), "2027-01-04");
+});
+
+test("jarak penawaran 0 mematikan aturan", () => {
+  assert.equal(pasangTerlaluDekat("2026-11-18", "2026-11-18", 0), false);
+  assert.equal(pasangTerlaluDekat("2026-01-01", "2026-11-18", 0), false);
+});
+
+test("bacaJarakPenawaran kembali ke 7 untuk isi yang tidak sah", () => {
+  assert.equal(bacaJarakPenawaran("14"), 14);
+  assert.equal(bacaJarakPenawaran("0"), 0);
+  assert.equal(bacaJarakPenawaran("365"), 365);
+  for (const buruk of ["", "abc", "-1", "366", "7.5", "1e2", " ", "1000"]) {
+    assert.equal(bacaJarakPenawaran(buruk), 7, buruk);
+  }
+  assert.equal(bacaJarakPenawaran(undefined), 7);
+  assert.equal(bacaJarakPenawaran(null), 7);
 });

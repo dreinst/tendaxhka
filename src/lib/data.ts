@@ -132,6 +132,7 @@ export const PENGATURAN_BAWAAN = {
   persen_pajak: "0",
   porsi_tenda: "50",
   gudang_lihat_nilai: "tidak",
+  jarak_penawaran_hari: "7",
   checklist_pasang: "Cek lokasi dan titik pasang\nHitung barang keluar gudang\nPasang rangka dan atap\nPasang dinding dan pemberat\nFoto hasil pasang\nSerah terima ke pelanggan",
   checklist_bongkar: "Bongkar dinding dan atap\nBongkar rangka\nHitung barang kembali ke gudang\nCatat barang rusak atau hilang",
 } as const;

@@ -17,10 +17,10 @@ import {
   ubahStatus,
 } from "@/lib/aksi";
 import { wajib } from "@/lib/auth";
-import { ambilPesanan, barisPesanan, kekurangan, lihatNilai, type Aset, type Biaya, type Kontak, type Tugas } from "@/lib/data";
+import { ambilPesanan, barisPesanan, kekurangan, lihatNilai, pengaturan, type Aset, type Biaya, type Kontak, type Tugas } from "@/lib/data";
 import { semua } from "@/lib/db";
 import { hariIni, LABEL_TUGAS, rupiah, tanggal } from "@/lib/format";
-import { bacaChecklist, boleh, nilaiBaris } from "@/lib/hitung";
+import { bacaChecklist, bacaJarakPenawaran, batasPasang, boleh, nilaiBaris } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Pesanan" };
 
@@ -54,7 +54,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
   // Kueri di bawah tidak saling bergantung, jadi dijalankan bersamaan. Pembayaran hanya diambil kalau akun ini
   // boleh melihat nilai pesanan.
   const nilaiTampak = lihatNilai(u.peran);
-  const [tampakNilai, baris, kurang, bayar, biaya, tugas, pilihan] = await Promise.all([
+  const [tampakNilai, baris, kurang, bayar, biaya, tugas, pilihan, atur] = await Promise.all([
     nilaiTampak,
     barisPesanan(p.id),
     p.status === "penawaran" ? kekurangan(p.id) : [],
@@ -72,9 +72,12 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
     bisaUbah
       ? Promise.all([semua<Kontak>("SELECT * FROM kontak ORDER BY nama"), semua<Aset>("SELECT * FROM aset WHERE aktif = 1 ORDER BY kategori, nama, ukuran")])
       : null,
+    pengaturan(),
   ]);
   const totalBiaya = biaya.reduce((s, b) => s + b.jumlah, 0);
   const hari = hariIni();
+  const jarak = bacaJarakPenawaran(atur.jarak_penawaran_hari);
+  const batasBaru = jarak > 0 ? batasPasang(hari, jarak) : undefined;
   // Penawaran tanpa pembayaran cukup diberi satu baris keterangan. Kartu pembayaran dan biaya baru berdampingan
   // di layar lebar kalau keduanya tampil penuh.
   const bayarRingkas = !dipesan && bayar.length === 0;
@@ -115,7 +118,12 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
           <Panel tombol="Pesan ulang" judul="Pesan ulang" ket="Menyalin baris dan harga pesanan ini menjadi penawaran baru di tanggal lain.">
             <form action={duplikatPesanan.bind(null, p.id)} className="space-y-4">
               <Bidang label="Tanggal pasang baru" id="dup_mulai">
-                <input className="isian" id="dup_mulai" name="mulai" type="date" required />
+                <input className="isian" id="dup_mulai" name="mulai" type="date" required min={batasBaru} aria-describedby={batasBaru ? "dup_mulai_ket" : undefined} />
+                {batasBaru && (
+                  <p id="dup_mulai_ket" className="mt-1 text-xs text-tinta-lembut">
+                    Tanggal pasang paling cepat {tanggal(batasBaru)}, {jarak} hari dari tanggal penawaran.
+                  </p>
+                )}
               </Bidang>
               <button className="tombol tombol-utama">Salin jadi penawaran</button>
             </form>
@@ -178,7 +186,7 @@ export default async function DetailPesanan({ params, searchParams }: { params: 
           <JudulKartu judul="Rincian pesanan">
             {pilihan && (
               <Panel tombol="Ubah rincian" judul={`Ubah rincian ${p.nomor}`} lebar="lebar">
-                <FormPesanan pesanan={p} baris={baris} kontak={pilihan[0]} aset={pilihan[1]} />
+                <FormPesanan pesanan={p} baris={baris} kontak={pilihan[0]} aset={pilihan[1]} hari={hari} jarak={jarak} />
               </Panel>
             )}
           </JudulKartu>

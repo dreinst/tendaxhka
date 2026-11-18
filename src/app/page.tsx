@@ -6,7 +6,8 @@ import { KakiSitus, KepalaSitus, tautanWa } from "@/komponen/situs";
 import { JagaIsian } from "@/komponen/jaga-isian";
 import { Bidang, LabelAtas, nilai, Pesan, type Cari } from "@/komponen/ui";
 import { kirimPermintaan } from "@/lib/aksi";
-import { rupiah } from "@/lib/format";
+import { hariIni, rupiah, tanggal } from "@/lib/format";
+import { bacaJarakPenawaran, batasPasang } from "@/lib/hitung";
 import { barangKatalog, identitasSitus } from "@/lib/katalog-data";
 import { ringkasKategori, tendaTermurah } from "@/lib/kategori";
 
@@ -26,6 +27,8 @@ const LANGKAH = [
 export default async function Beranda({ searchParams }: { searchParams: Cari }) {
   const sp = await searchParams;
   const [{ s, wa, sapa }, barang] = await Promise.all([identitasSitus(), barangKatalog()]);
+  const jarak = bacaJarakPenawaran(s.jarak_penawaran_hari);
+  const batasAcara = jarak > 0 ? batasPasang(hariIni(), jarak) : undefined;
   const kategori = ringkasKategori(barang);
   const termurah = tendaTermurah(barang);
   const pita = [
@@ -193,7 +196,12 @@ export default async function Beranda({ searchParams }: { searchParams: Cari }) 
                   <input className="isian" id="perusahaan" name="perusahaan" maxLength={120} autoComplete="organization" />
                 </Bidang>
                 <Bidang label="Tanggal acara" id="tanggal">
-                  <input className="isian" id="tanggal" name="tanggal" type="date" />
+                  <input className="isian" id="tanggal" name="tanggal" type="date" min={batasAcara} aria-describedby={batasAcara ? "tanggal-ket" : undefined} />
+                  {batasAcara && (
+                    <p id="tanggal-ket" className="mt-1 text-xs text-tinta-lembut">
+                      Pemesanan paling lambat {jarak} hari sebelum acara (mulai {tanggal(batasAcara)}).
+                    </p>
+                  )}
                 </Bidang>
                 <Bidang label="Jenis acara" id="jenis_acara">
                   <input className="isian" id="jenis_acara" name="jenis_acara" maxLength={100} placeholder="Resepsi, wisuda, pameran" />

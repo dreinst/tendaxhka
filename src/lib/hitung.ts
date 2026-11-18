@@ -59,6 +59,28 @@ export function selisihHari(awal: string, akhir: string): number {
   return Math.round((Date.parse(`${akhir}T00:00:00Z`) - Date.parse(`${awal}T00:00:00Z`)) / 864e5);
 }
 
+// Jarak minimal dari tanggal penawaran ke tanggal pasang, dalam hari. 0 mematikan aturan.
+export const JARAK_PENAWARAN_BAWAAN = 7;
+export const JARAK_PENAWARAN_MAKS = 365;
+
+// Membaca pengaturan jarak_penawaran_hari. Isi yang bukan bilangan bulat 0 sampai 365 kembali ke bawaan (7).
+export function bacaJarakPenawaran(nilai: string | null | undefined): number {
+  const t = String(nilai ?? "").trim();
+  if (!/^\d{1,3}$/.test(t)) return JARAK_PENAWARAN_BAWAAN;
+  const n = Number(t);
+  return n <= JARAK_PENAWARAN_MAKS ? n : JARAK_PENAWARAN_BAWAAN;
+}
+
+// Tanggal pasang paling cepat untuk penawaran yang dibuat pada `hari`.
+export function batasPasang(hari: string, jarak: number): string {
+  return tambahHari(hari, jarak);
+}
+
+// True kalau tanggal pasang lebih dekat dari batas. Jarak 0 tidak pernah menolak. Tanggal diasumsikan sah.
+export function pasangTerlaluDekat(mulai: string, hari: string, jarak: number): boolean {
+  return jarak > 0 && mulai < batasPasang(hari, jarak);
+}
+
 export const MAKS_RENTANG_HARI = 3700;
 // Lama sewa satu pesanan paling panjang, dihitung dari tanggal pasang sampai bongkar.
 export const MAKS_LAMA_PESANAN = 366;

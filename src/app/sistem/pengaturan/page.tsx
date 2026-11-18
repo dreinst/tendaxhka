@@ -7,6 +7,7 @@ import { wajib } from "@/lib/auth";
 import { pengaturan, type Pengguna } from "@/lib/data";
 import { semua } from "@/lib/db";
 import { LABEL_PERAN } from "@/lib/format";
+import { bacaJarakPenawaran, JARAK_PENAWARAN_MAKS } from "@/lib/hitung";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
@@ -94,6 +95,30 @@ export default async function Pengaturan({ searchParams }: { searchParams: Cari 
           </Bidang>
           <Bidang label="Porsi Tenda Indonesia, %" id="porsi_tenda">
             <input className="isian" id="porsi_tenda" name="porsi_tenda" inputMode="decimal" defaultValue={s.porsi_tenda} />
+          </Bidang>
+        </section>
+
+        <section className="kartu flex flex-wrap items-end justify-between gap-3 p-4">
+          <div className="min-w-0 flex-1 basis-80">
+            <h2 className="text-sm font-bold">Aturan penawaran</h2>
+            <p className="mt-1 text-xs text-tinta-lembut">
+              Pemasangan biasanya paling lambat sehari sebelum acara, jadi tanggal pasang tidak boleh terlalu dekat dari hari penawaran dibuat.
+              Isi 0 untuk mematikan aturan. Berlaku untuk penawaran baru, pesan ulang, dan formulir di website.
+            </p>
+          </div>
+          <Bidang label="Jarak minimal penawaran ke tanggal pasang, hari" id="jarak_penawaran_hari" className="w-full sm:w-64">
+            <input
+              className="isian"
+              id="jarak_penawaran_hari"
+              name="jarak_penawaran_hari"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={JARAK_PENAWARAN_MAKS}
+              step={1}
+              required
+              defaultValue={bacaJarakPenawaran(s.jarak_penawaran_hari)}
+            />
           </Bidang>
         </section>
 

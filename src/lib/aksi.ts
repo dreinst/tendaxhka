@@ -6,9 +6,9 @@ import { redirect } from "next/navigation";
 import { alamatIp, bukaSesi, COOKIE_SESI, kenaliPerangkat, perangkatDikenal, tutupSesi, wajib } from "./auth.ts";
 import { ambilPesanan, bulanTerkunci, cabutSesiLain, catatLog, galatStatus, galatUbahPesanan, hariTerpadat, kekurangan, kunciBulan, nomorBerikut, pengaturan, PENGATURAN_BAWAAN, salinPesanan, setStatusPesanan, unitDirawat, type Aset } from "./data.ts";
 import { jalankan, satu, semua, sisip, transaksi } from "./db.ts";
-import { hariIni, LABEL_STATUS, rupiah } from "./format.ts";
+import { hariIni, LABEL_STATUS, rupiah, tanggal } from "./format.ts";
 import { hapusBerkasFoto, simpanBerkasFoto } from "./foto.ts";
-import { bacaChecklist, bacaRupiah, bulanSah, galatLamaPesanan, MAKS_FOTO_PER_ASET, MAKS_JUMLAH, MAKS_UANG, MAKS_UKURAN_FOTO, nilaiBaris, selisihHari, tambahHari, tampakJpeg, tanggalSah, totalPesanan, type ButirChecklist } from "./hitung.ts";
+import { bacaChecklist, JARAK_PENAWARAN_MAKS, bacaJarakPenawaran, bacaRupiah, batasPasang, bulanSah, galatLamaPesanan, MAKS_FOTO_PER_ASET, MAKS_JUMLAH, MAKS_UANG, MAKS_UKURAN_FOTO, nilaiBaris, pasangTerlaluDekat, selisihHari, tambahHari, tampakJpeg, tanggalSah, totalPesanan, type ButirChecklist } from "./hitung.ts";
 import { batasMasuk, bersihkanPembatas, catatPercobaan, JENDELA_MASUK, lupakanPerangkat, lupakanPercobaan, melewatiBatas } from "./pembatas.ts";
 import { cocokSandi, cocokSandiPalsu, hashSandi, hashToken, samaAman } from "./sandi.ts";
 
@@ -127,6 +127,18 @@ export async function keluar(): Promise<void> {
   redirect("/masuk");
 }
 
+// Aturan jarak penawaran: tanggal pasang minimal hari ini ditambah jarak (pengaturan jarak_penawaran_hari).
+// Mengembalikan pesan galat, atau null kalau tanggalnya aman atau aturan mati (jarak 0).
+async function galatJarakPasang(mulai: string, publik = false): Promise<string | null> {
+  const jarak = bacaJarakPenawaran((await pengaturan()).jarak_penawaran_hari);
+  const hari = hariIni();
+  if (!pasangTerlaluDekat(mulai, hari, jarak)) return null;
+  const batas = tanggal(batasPasang(hari, jarak));
+  return publik
+    ? `Tanggal acara paling cepat ${batas}. Kami menerima pemesanan paling lambat ${jarak} hari sebelum acara.`
+    : `Tanggal pasang paling cepat ${batas}, yaitu ${jarak} hari dari tanggal penawaran. Batas ini bisa diubah admin di Pengaturan.`;
+}
+
 // Formulir publik di website
 
 export async function kirimPermintaan(fd: FormData): Promise<void> {
@@ -141,6 +153,10 @@ export async function kirimPermintaan(fd: FormData): Promise<void> {
   const telepon = teks(fd, "telepon", 30);
   if (!nama || !/^[\d+\s()-]{8,30}$/.test(telepon)) gagal("/#kontak", "Isi nama dan nomor telepon yang bisa dihubungi.");
   const tgl = teks(fd, "tanggal", 10);
+  if (tanggalSah(tgl)) {
+    const dekat = await galatJarakPasang(tgl, true);
+    if (dekat) gagal("/#kontak", dekat);
+  }
   const jenisAcara = teks(fd, "jenis_acara", 100);
   const tamu = bulat(fd.get("tamu"));
   const rincian = [
@@ -228,6 +244,10 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
   if (selesai < mulai) gagal(kembali, "Tanggal bongkar tidak boleh lebih awal dari tanggal pasang.");
   const lamaGalat = galatLamaPesanan(mulai, selesai);
   if (lamaGalat) gagal(kembali, lamaGalat);
+  if (!id) {
+    const dekat = await galatJarakPasang(mulai);
+    if (dekat) gagal(kembali, dekat);
+  }
 
   const aset = new Map((await semua<Aset>("SELECT * FROM aset")).map((a) => [a.id, a]));
   const kolom = (k: string) => fd.getAll(k);
@@ -257,6 +277,11 @@ export async function simpanPesanan(fd: FormData): Promise<void> {
       const lama = await satu<{ status: string; mulai: string; selesai: string }>("SELECT status, mulai, selesai FROM pesanan WHERE id = ?", id);
       if (!lama) throw new Galat("Pesanan tidak ditemukan.");
       if (lama.status === "selesai" || lama.status === "batal") throw new Galat("Pesanan yang sudah selesai atau batal tidak bisa diubah.");
+      // Penawaran lama boleh disimpan ulang asal tanggal pasangnya tidak berubah.
+      if (lama.status === "penawaran" && mulai !== lama.mulai) {
+        const dekat = await galatJarakPasang(mulai);
+        if (dekat) throw new Galat(dekat);
+      }
       const galatUbah = await galatUbahPesanan(id, { baris, diskon, mulai, selesai });
       if (galatUbah) throw new Galat(galatUbah);
       // Tugas pasang dan bongkar yang belum selesai ikut pindah kalau tanggal pesanan digeser. Tugas yang
@@ -408,6 +433,8 @@ export async function duplikatPesanan(id: number, fd: FormData): Promise<void> {
   if (!tanggalSah(mulai)) gagal(`/sistem/pesanan/${id}`, "Tanggal pasang tidak bisa dibaca. Pakai tanggal di tahun 2000 sampai 2100.");
   const galatLama = galatLamaPesanan(p.mulai, p.selesai);
   if (galatLama) gagal(`/sistem/pesanan/${id}`, galatLama);
+  const dekat = await galatJarakPasang(mulai);
+  if (dekat) gagal(`/sistem/pesanan/${id}`, dekat);
   const lama = selisihHari(p.mulai, p.selesai);
   const selesai = tambahHari(mulai, lama);
   if (!tanggalSah(selesai)) gagal(`/sistem/pesanan/${id}`, "Tanggal bongkar pesanan baru jatuh di luar tahun 2000 sampai 2100.");
@@ -766,6 +793,10 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
   const u = await wajib("pengaturan");
   const lama = await pengaturan();
   const angka = (k: string, maks: number) => String(Math.min(maks, Math.max(0, Number(teks(fd, k, 10).replace(",", ".")) || 0)));
+  const jarakIsi = teks(fd, "jarak_penawaran_hari", 10);
+  if (!/^\d{1,3}$/.test(jarakIsi) || Number(jarakIsi) > JARAK_PENAWARAN_MAKS) {
+    gagal("/sistem/pengaturan", `Jarak minimal penawaran harus bilangan bulat 0 sampai ${JARAK_PENAWARAN_MAKS} hari.`);
+  }
   const isi: Record<keyof typeof PENGATURAN_BAWAAN, string> = {
     nama_usaha: teks(fd, "nama_usaha", 80) || PENGATURAN_BAWAAN.nama_usaha,
     telepon: teks(fd, "telepon", 30),
@@ -778,6 +809,7 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
     persen_pajak: angka("persen_pajak", 100),
     porsi_tenda: angka("porsi_tenda", 100),
     gudang_lihat_nilai: pilihan(teks(fd, "gudang_lihat_nilai"), ["tidak", "ya"], "tidak"),
+    jarak_penawaran_hari: String(Number(jarakIsi)),
     checklist_pasang: teks(fd, "checklist_pasang", 3000),
     checklist_bongkar: teks(fd, "checklist_bongkar", 3000),
   };
@@ -786,7 +818,7 @@ export async function simpanPengaturan(fd: FormData): Promise<void> {
       await jalankan("INSERT INTO pengaturan (kunci, nilai) VALUES (?, ?) ON CONFLICT (kunci) DO UPDATE SET nilai = excluded.nilai", k, v);
     }
     // Kunci yang memengaruhi bagi hasil atau hak akses dicatat lengkap dengan nilai lamanya. Yang lain cukup namanya.
-    const rumus = ["basis", "persen_cadangan", "persen_pajak", "porsi_tenda", "gudang_lihat_nilai"];
+    const rumus = ["basis", "persen_cadangan", "persen_pajak", "porsi_tenda", "gudang_lihat_nilai", "jarak_penawaran_hari"];
     const berubah = (Object.keys(isi) as (keyof typeof isi)[]).filter((k) => lama[k] !== isi[k]);
     if (berubah.length) {
       await catatLog(u, "Ubah pengaturan", berubah.map((k) => (rumus.includes(k) ? `${k} dari ${lama[k]} menjadi ${isi[k]}` : k)).join("; "));

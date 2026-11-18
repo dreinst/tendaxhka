@@ -143,10 +143,11 @@ export async function isiDataContoh(sandi: string): Promise<void> {
     await pesanan(1, "Resepsi pernikahan", "Jl. Contoh No. 1", -41, 1, "selesai", [["TD-46", "", 6, 1], ["KS-01", "", 150, 1], ["MJ-01", "", 15, 1], antar], 2, [["Transport", 800_000], ["Upah kru", 1_600_000]]);
     await pesanan(2, "Pameran UMKM", "Alun-alun Contoh", -19, 3, "selesai", [["TS-33", "", 16, 3], ["TS-55", "", 4, 3], ["LP-01", "", 16, 3], antar], 2, [["Transport", 1_000_000], ["Upah kru", 2_000_000], ["Sewa genset", 1_500_000]]);
     await pesanan(0, "Peluncuran produk", "Halaman Kantor Contoh", -1, 2, "berjalan", [["TR-10", "", 3, 2], ["LT-01", "", 40, 2], ["AC-05", "", 3, 2], antar], 1, [["Transport", 900_000]]);
-    await pesanan(2, "Bazar akhir pekan", "Parkir Mal Contoh", 5, 2, "booking", [["TS-55", "", 8, 2], ["KP-01", "", 6, 2], antar], 1, []);
+    await pesanan(2, "Bazar akhir pekan", "Parkir Mal Contoh", 8, 2, "booking", [["TS-55", "", 8, 2], ["KP-01", "", 6, 2], antar], 1, []);
     await pesanan(1, "Syukuran keluarga", "Jl. Contoh No. 1", 12, 1, "booking", [["TD-46", "", 3, 1], ["KS-01", "", 80, 1], antar], 0, []);
-    // Penawaran ini sengaja bentrok dengan bazar akhir pekan supaya peringatan ketersediaan terlihat.
-    await pesanan(3, "Wisuda", "Halaman Kampus Contoh", 6, 1, "penawaran", [["TR-10", "", 6, 1], ["TS-55", "", 6, 1], ["KS-01", "", 300, 1], antar], 0, []);
+    // Penawaran ini sengaja bentrok dengan bazar akhir pekan supaya peringatan ketersediaan terlihat. Tanggal
+    // pasangnya minimal 9 hari dari hari ini, supaya lolos aturan jarak penawaran (bawaan 7 hari).
+    await pesanan(3, "Wisuda", "Halaman Kampus Contoh", 9, 1, "penawaran", [["TR-10", "", 6, 1], ["TS-55", "", 6, 1], ["KS-01", "", 300, 1], antar], 0, []);
 
     const bulan = hari.slice(0, 7);
     for (const n of [-2, -1, 0]) {

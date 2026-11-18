@@ -3,7 +3,8 @@ import { JagaIsian } from "@/komponen/jaga-isian";
 import { Bidang } from "@/komponen/ui";
 import { simpanKontak, simpanPesanan } from "@/lib/aksi";
 import type { Aset, BarisPesanan, Kontak, Pesanan } from "@/lib/data";
-import { LABEL_TAHAP } from "@/lib/format";
+import { LABEL_TAHAP, tanggal } from "@/lib/format";
+import { batasPasang } from "@/lib/hitung";
 
 export function FormKontak({ kontak: k }: { kontak?: Kontak }) {
   return (
@@ -58,13 +59,22 @@ export function FormPesanan({
   kontak,
   aset,
   kontakId,
+  hari,
+  jarak = 0,
 }: {
   pesanan?: Pesanan;
   baris: BarisPesanan[];
   kontak: Kontak[];
   aset: Aset[];
   kontakId?: number;
+  // Hari ini dan jarak minimal penawaran ke tanggal pasang. Server tetap memeriksa, ini hanya untuk bantuan di layar.
+  hari?: string;
+  jarak?: number;
 }) {
+  // Aturan jarak hanya untuk penawaran. Pesanan yang sudah lewat dari penawaran tidak diberi batas.
+  const berlaku = !!hari && jarak > 0 && (!p || p.status === "penawaran");
+  const batas = berlaku ? batasPasang(hari, jarak) : undefined;
+  const sudahDekat = !!(batas && p && p.mulai < batas);
   return (
     <form action={simpanPesanan} className="space-y-4">
       {p && <input type="hidden" name="id" value={p.id} />}
@@ -81,7 +91,13 @@ export function FormPesanan({
           <input className="isian" id="acara" name="acara" required maxLength={160} defaultValue={p?.acara} />
         </Bidang>
         <Bidang label="Tanggal pasang" id="mulai">
-          <input className="isian" id="mulai" name="mulai" type="date" required defaultValue={p?.mulai} />
+          <input className="isian" id="mulai" name="mulai" type="date" required min={sudahDekat ? p?.mulai : batas} defaultValue={p?.mulai} aria-describedby={batas ? "mulai-ket" : undefined} />
+          {batas && (
+            <p id="mulai-ket" className="mt-1 text-xs text-tinta-lembut">
+              Tanggal pasang paling cepat {tanggal(batas)}, {jarak} hari dari tanggal penawaran.
+              {sudahDekat && " Tanggal yang sudah tersimpan tetap boleh dipakai."}
+            </p>
+          )}
         </Bidang>
         <Bidang label="Tanggal bongkar" id="selesai">
           <input className="isian" id="selesai" name="selesai" type="date" required defaultValue={p?.selesai} />
